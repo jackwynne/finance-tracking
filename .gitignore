@@ -21,6 +21,7 @@
 /build
 /dist/
 /dist-ssr/
+.output
 
 # misc
 .DS_Store
