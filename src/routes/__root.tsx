@@ -1,5 +1,6 @@
 import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from '@tanstack/react-router';
 import { getAuth } from '@workos/authkit-tanstack-react-start';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import appCssUrl from '../app.css?url';
 import type { QueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
@@ -59,7 +60,7 @@ function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
         <HeadContent />
       </head>
       <body>
-        {children}
+        <TooltipProvider>{children}</TooltipProvider>
         <Scripts />
       </body>
     </html>
