@@ -1,3 +1,5 @@
-package-lock.json
-pnpm-lock.yaml
-yarn.lock
+convex/_generated/
+example/convex/_generated/
+routeTree.gen.ts
+.agents/skills/
+.claude/skills/

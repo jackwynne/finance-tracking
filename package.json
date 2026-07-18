@@ -1,55 +1,50 @@
 {
   "name": "finance-tracking",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "imports": {
-    "#/*": "./src/*"
+  "license": "MIT",
+  "homepage": "https://github.com/workos/template-convex-tanstack-start-authkit/#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/workos/template-convex-tanstack-start-authkit.git"
+  },
+  "bugs": {
+    "url": "https://github.com/workos/template-convex-tanstack-start-authkit/issues"
   },
   "scripts": {
-    "dev": "vite dev --port 3000",
-    "generate-routes": "tsr generate",
+    "dev": "convex dev --start 'vite dev'",
     "build": "vite build",
-    "preview": "vite preview",
-    "test": "vitest run"
+    "start": "vite start",
+    "format": "prettier --write .",
+    "lint": "tsc && eslint .  --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
-    "@convex-dev/react-query": "0.1.0",
-    "@faker-js/faker": "^10.5.0",
-    "@tailwindcss/vite": "^4.3.3",
-    "@tanstack/match-sorter-utils": "latest",
-    "@tanstack/react-devtools": "latest",
-    "@tanstack/react-form": "latest",
-    "@tanstack/react-router": "latest",
-    "@tanstack/react-router-devtools": "latest",
-    "@tanstack/react-router-ssr-query": "latest",
-    "@tanstack/react-start": "latest",
-    "@tanstack/react-table": "latest",
-    "@tanstack/router-plugin": "^1.168.20",
-    "@workos-inc/authkit-react": "^0.16.1",
+    "@convex-dev/react-query": "^0.1.0",
+    "@tanstack/react-query": "^5.99.0",
+    "@tanstack/react-router": "^1.168.22",
+    "@tanstack/react-router-ssr-query": "^1.166.11",
+    "@tanstack/react-start": "^1.167.41",
+    "@workos/authkit-tanstack-react-start": "0.6.0",
     "convex": "^1.42.3",
-    "lucide-react": "^0.577.0",
-    "nitro": "npm:nitro-nightly@3.0.1-20260717-080150-bfc2f5ef",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7",
-    "tailwindcss": "^4.3.3",
-    "zod": "^4.4.3"
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5"
   },
   "devDependencies": {
-    "@rolldown/plugin-babel": "^0.2.3",
-    "@tailwindcss/typography": "^0.5.20",
-    "@tanstack/devtools-vite": "latest",
-    "@tanstack/router-cli": "^1.167.19",
-    "@testing-library/dom": "^10.4.1",
-    "@testing-library/react": "^16.3.2",
-    "@types/node": "^22.20.1",
-    "@types/react": "^19.2.17",
+    "@convex-dev/eslint-plugin": "^2.0.0",
+    "@tailwindcss/postcss": "^4.2.2",
+    "@tanstack/eslint-config": "^0.4.0",
+    "@tanstack/react-router-devtools": "^1.166.13",
+    "@types/node": "^24.12.2",
+    "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^6.0.3",
-    "babel-plugin-react-compiler": "^1.0.0",
-    "jsdom": "^28.1.0",
+    "@vitejs/plugin-react": "^6.0.2",
+    "dotenv": "^17.4.2",
+    "prettier": "^3.8.3",
+    "tailwindcss": "^4.2.2",
     "typescript": "^6.0.3",
-    "vite": "^8.1.5",
-    "vitest": "^4.1.10"
+    "vite": "^8.0.9",
+    "vite-tsconfig-paths": "^6.1.1"
   },
   "packageManager": "pnpm@11.15.0+sha512.266f8957a30d2be6e9468e5e66bcdedd35a794175f71b067ba8504d686cce1d0c0f429b33c323c3c569ad4891e667574a49ff71d1b89a22cc66f13c65818c578"
 }

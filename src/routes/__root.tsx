@@ -1,18 +1,16 @@
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
-import { TanStackDevtools } from '@tanstack/react-devtools'
-import Footer from '../components/Footer'
-import Header from '../components/Header'
+import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from '@tanstack/react-router';
+import { getAuth } from '@workos/authkit-tanstack-react-start';
+import appCssUrl from '../app.css?url';
+import type { QueryClient } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
+import type { ConvexReactClient } from 'convex/react';
+import type { ConvexQueryClient } from '@convex-dev/react-query';
 
-import WorkOSProvider from '../integrations/workos/provider'
-
-import ConvexProvider from '../integrations/convex/provider'
-
-import appCss from '../styles.css?url'
-
-const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark'||stored==='auto')?stored:'auto';var prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;var resolved=mode==='auto'?(prefersDark?'dark':'light'):mode;var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);if(mode==='auto'){root.removeAttribute('data-theme')}else{root.setAttribute('data-theme',mode)}root.style.colorScheme=resolved;}catch(e){}})();`
-
-export const Route = createRootRoute({
+export const Route = createRootRouteWithContext<{
+  queryClient: QueryClient;
+  convexClient: ConvexReactClient;
+  convexQueryClient: ConvexQueryClient;
+}>()({
   head: () => ({
     meta: [
       {
@@ -23,47 +21,47 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'TanStack Start Starter',
+        title: 'Convex + TanStack Start + WorkOS AuthKit',
       },
     ],
     links: [
-      {
-        rel: 'stylesheet',
-        href: appCss,
-      },
+      { rel: 'stylesheet', href: appCssUrl },
+      { rel: 'icon', href: '/convex.svg' },
     ],
   }),
-  shellComponent: RootDocument,
-})
+  component: RootComponent,
+  notFoundComponent: () => <div>Not Found</div>,
+  beforeLoad: async (ctx) => {
+    const auth = await getAuth();
 
-function RootDocument({ children }: { children: React.ReactNode }) {
+    // During SSR only (the only time serverHttpClient exists),
+    // set the WorkOS auth token to make HTTP queries with.
+    if (auth.user) {
+      ctx.context.convexQueryClient.serverHttpClient?.setAuth(auth.accessToken);
+    }
+
+    return { user: auth.user };
+  },
+});
+
+function RootComponent() {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <RootDocument>
+      <Outlet />
+    </RootDocument>
+  );
+}
+
+function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <html lang="en">
       <head>
-        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <HeadContent />
       </head>
-      <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[rgba(79,184,178,0.24)]">
-        <WorkOSProvider>
-          <ConvexProvider>
-            <Header />
-            {children}
-            <Footer />
-            <TanStackDevtools
-              config={{
-                position: 'bottom-right',
-              }}
-              plugins={[
-                {
-                  name: 'Tanstack Router',
-                  render: <TanStackRouterDevtoolsPanel />,
-                },
-              ]}
-            />
-          </ConvexProvider>
-        </WorkOSProvider>
+      <body>
+        {children}
         <Scripts />
       </body>
     </html>
-  )
+  );
 }

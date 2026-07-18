@@ -1,23 +1,23 @@
-import { defineConfig } from 'vite'
-import { devtools } from '@tanstack/devtools-vite'
+import { defineConfig } from 'vite';
+import tsConfigPaths from 'vite-tsconfig-paths';
+import { tanstackStart } from '@tanstack/react-start/plugin/vite';
+import viteReact from '@vitejs/plugin-react';
+import * as dotenv from 'dotenv';
 
-import { tanstackStart } from '@tanstack/react-start/plugin/vite'
+// Load .env.local (TanStack Start/Vite convention)
+dotenv.config({ path: '.env.local', quiet: true });
+// Also load .env as fallback
+dotenv.config({ quiet: true });
 
-import viteReact, { reactCompilerPreset } from '@vitejs/plugin-react'
-import babel from '@rolldown/plugin-babel'
-import tailwindcss from '@tailwindcss/vite'
-import { nitro } from 'nitro/vite'
-
-const config = defineConfig({
-  resolve: { tsconfigPaths: true },
+export default defineConfig({
+  server: {
+    port: 3000,
+  },
   plugins: [
-    devtools(),
-    nitro({ rollupConfig: { external: [/^@sentry\//] } }),
-    tailwindcss(),
+    tsConfigPaths({
+      projects: ['./tsconfig.json'],
+    }),
     tanstackStart(),
     viteReact(),
-    babel({ presets: [reactCompilerPreset()] }),
   ],
-})
-
-export default config
+});

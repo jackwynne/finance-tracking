@@ -1,87 +1,161 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { Link, createFileRoute } from '@tanstack/react-router';
+import { Authenticated, Unauthenticated, useMutation } from 'convex/react';
+import { useAuth } from '@workos/authkit-tanstack-react-start/client';
+import { getAuth } from '@workos/authkit-tanstack-react-start';
+import { convexQuery } from '@convex-dev/react-query';
+import { useSuspenseQuery } from '@tanstack/react-query';
+import { api } from '../../convex/_generated/api';
+import type { User } from '@workos/authkit-tanstack-react-start';
 
-export const Route = createFileRoute('/')({ component: App })
+export const Route = createFileRoute('/')({
+  component: Home,
+  loader: async () => {
+    const { user } = await getAuth();
+    return { user };
+  },
+});
 
-function App() {
+function Home() {
+  const { user } = Route.useLoaderData();
+  return <HomeContent user={user} />;
+}
+
+function HomeContent({ user }: { user: User | null }) {
   return (
-    <main className="page-wrap px-4 pb-8 pt-14">
-      <section className="island-shell rise-in relative overflow-hidden rounded-[2rem] px-6 py-10 sm:px-10 sm:py-14">
-        <div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(79,184,178,0.32),transparent_66%)]" />
-        <div className="pointer-events-none absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(47,106,74,0.18),transparent_66%)]" />
-        <p className="island-kicker mb-3">TanStack Start Base Template</p>
-        <h1 className="display-title mb-5 max-w-3xl text-4xl leading-[1.02] font-bold tracking-tight text-[var(--sea-ink)] sm:text-6xl">
-          Start simple, ship quickly.
-        </h1>
-        <p className="mb-8 max-w-2xl text-base text-[var(--sea-ink-soft)] sm:text-lg">
-          This base starter intentionally keeps things light: two routes, clean
-          structure, and the essentials you need to build from scratch.
-        </p>
-        <div className="flex flex-wrap gap-3">
-          <a
-            href="/about"
-            className="rounded-full border border-[rgba(50,143,151,0.3)] bg-[rgba(79,184,178,0.14)] px-5 py-2.5 text-sm font-semibold text-[var(--lagoon-deep)] no-underline transition hover:-translate-y-0.5 hover:bg-[rgba(79,184,178,0.24)]"
-          >
-            About This Starter
-          </a>
-          <a
-            href="https://tanstack.com/router"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-full border border-[rgba(23,58,64,0.2)] bg-white/50 px-5 py-2.5 text-sm font-semibold text-[var(--sea-ink)] no-underline transition hover:-translate-y-0.5 hover:border-[rgba(23,58,64,0.35)]"
-          >
-            Router Guide
-          </a>
+    <>
+      <header className="sticky top-0 z-10 bg-background p-4 border-b-2 border-slate-200 dark:border-slate-800 flex flex-row justify-between items-center">
+        Convex + TanStack Start + WorkOS
+        {user && <UserMenu user={user} />}
+      </header>
+      <main className="p-8 flex flex-col gap-8">
+        <h1 className="text-4xl font-bold text-center">Convex + TanStack Start + WorkOS</h1>
+        <Authenticated>
+          <Content />
+        </Authenticated>
+        <Unauthenticated>
+          <SignInForm />
+        </Unauthenticated>
+      </main>
+    </>
+  );
+}
+
+function SignInForm() {
+  return (
+    <div className="flex flex-col gap-8 w-96 mx-auto">
+      <p>Log in to see the numbers</p>
+      <a href="/sign-in">
+        <button className="bg-foreground text-background px-4 py-2 rounded-md">Sign in</button>
+      </a>
+      <a href="/sign-up">
+        <button className="bg-foreground text-background px-4 py-2 rounded-md">Sign up</button>
+      </a>
+    </div>
+  );
+}
+
+function Content() {
+  const {
+    data: { viewer, numbers },
+  } = useSuspenseQuery(
+    convexQuery(api.myFunctions.listNumbers, {
+      count: 10,
+    }),
+  );
+  const addNumber = useMutation(api.myFunctions.addNumber);
+
+  return (
+    <div className="flex flex-col gap-8 max-w-lg mx-auto">
+      <p>Welcome {viewer}!</p>
+      <p>
+        Click the button below and open this page in another window - this data is persisted in the Convex cloud
+        database!
+      </p>
+      <p>
+        <button
+          className="bg-foreground text-background text-sm px-4 py-2 rounded-md"
+          onClick={() => {
+            void addNumber({ value: Math.floor(Math.random() * 10) });
+          }}
+        >
+          Add a random number
+        </button>
+      </p>
+      <p>Numbers: {numbers.length === 0 ? 'Click the button!' : numbers.join(', ')}</p>
+      <p>
+        Edit{' '}
+        <code className="text-sm font-bold font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded-md">
+          convex/myFunctions.ts
+        </code>{' '}
+        to change your backend
+      </p>
+      <p>
+        Edit{' '}
+        <code className="text-sm font-bold font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded-md">
+          src/routes/index.tsx
+        </code>{' '}
+        to change your frontend
+      </p>
+      <p>
+        See{' '}
+        <Link to="/authenticated" className="underline hover:no-underline">
+          /authenticated
+        </Link>{' '}
+        for an example of a page only available to authenticated users.
+      </p>
+      <div className="flex flex-col">
+        <p className="text-lg font-bold">Useful resources:</p>
+        <div className="flex gap-2">
+          <div className="flex flex-col gap-2 w-1/2">
+            <ResourceCard
+              title="Convex docs"
+              description="Read comprehensive documentation for all Convex features."
+              href="https://docs.convex.dev/home"
+            />
+            <ResourceCard
+              title="Stack articles"
+              description="Learn about best practices, use cases, and more from a growing collection of articles, videos, and walkthroughs."
+              href="https://stack.convex.dev"
+            />
+          </div>
+          <div className="flex flex-col gap-2 w-1/2">
+            <ResourceCard
+              title="Templates"
+              description="Browse our collection of templates to get started quickly."
+              href="https://www.convex.dev/templates"
+            />
+            <ResourceCard
+              title="Discord"
+              description="Join our developer community to ask questions, trade tips & tricks, and show off your projects."
+              href="https://www.convex.dev/community"
+            />
+          </div>
         </div>
-      </section>
+      </div>
+    </div>
+  );
+}
 
-      <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          [
-            'Type-Safe Routing',
-            'Routes and links stay in sync across every page.',
-          ],
-          [
-            'Server Functions',
-            'Call server code from your UI without creating API boilerplate.',
-          ],
-          [
-            'Streaming by Default',
-            'Ship progressively rendered responses for faster experiences.',
-          ],
-          [
-            'Tailwind Native',
-            'Design quickly with utility-first styling and reusable tokens.',
-          ],
-        ].map(([title, desc], index) => (
-          <article
-            key={title}
-            className="island-shell feature-card rise-in rounded-2xl p-5"
-            style={{ animationDelay: `${index * 90 + 80}ms` }}
-          >
-            <h2 className="mb-2 text-base font-semibold text-[var(--sea-ink)]">
-              {title}
-            </h2>
-            <p className="m-0 text-sm text-[var(--sea-ink-soft)]">{desc}</p>
-          </article>
-        ))}
-      </section>
+function ResourceCard({ title, description, href }: { title: string; description: string; href: string }) {
+  return (
+    <div className="flex flex-col gap-2 bg-slate-200 dark:bg-slate-800 p-4 rounded-md h-28 overflow-auto">
+      <a href={href} className="text-sm underline hover:no-underline">
+        {title}
+      </a>
+      <p className="text-xs">{description}</p>
+    </div>
+  );
+}
 
-      <section className="island-shell mt-8 rounded-2xl p-6">
-        <p className="island-kicker mb-2">Quick Start</p>
-        <ul className="m-0 list-disc space-y-2 pl-5 text-sm text-[var(--sea-ink-soft)]">
-          <li>
-            Edit <code>src/routes/index.tsx</code> to customize the home page.
-          </li>
-          <li>
-            Update <code>src/components/Header.tsx</code> and{' '}
-            <code>src/components/Footer.tsx</code> for brand links.
-          </li>
-          <li>
-            Add routes in <code>src/routes</code> and tweak visual tokens in{' '}
-            <code>src/styles.css</code>.
-          </li>
-        </ul>
-      </section>
-    </main>
-  )
+function UserMenu({ user }: { user: User }) {
+  const { signOut } = useAuth();
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm">{user.email}</span>
+      <button onClick={() => signOut()} className="bg-red-500 text-white px-3 py-1 rounded-md text-sm hover:bg-red-600">
+        Sign out
+      </button>
+    </div>
+  );
 }
