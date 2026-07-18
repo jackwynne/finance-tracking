@@ -12,16 +12,16 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0(@tanstack/react-query@5.101.2(react@19.2.7))(convex@1.42.3(react@19.2.7))
       '@tanstack/react-query':
-        specifier: ^5.99.0
+        specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
       '@tanstack/react-router':
-        specifier: ^1.168.22
+        specifier: ^1.170.18
         version: 1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/react-router-ssr-query':
-        specifier: ^1.166.11
+        specifier: ^1.167.1
         version: 1.167.1(@tanstack/query-core@5.101.2)(@tanstack/react-query@5.101.2(react@19.2.7))(@tanstack/react-router@1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@tanstack/router-core@1.171.15)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@tanstack/react-start':
-        specifier: ^1.167.41
+        specifier: ^1.168.28
         version: 1.168.28(esbuild@0.27.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(rolldown@1.1.5)(vite@8.1.5(@types/node@24.13.3)(esbuild@0.27.0)(jiti@2.7.0))
       '@workos/authkit-tanstack-react-start':
         specifier: 0.6.0
@@ -30,50 +30,50 @@ importers:
         specifier: ^1.42.3
         version: 1.42.3(react@19.2.7)
       react:
-        specifier: ^19.2.5
+        specifier: ^19.2.7
         version: 19.2.7
       react-dom:
-        specifier: ^19.2.5
+        specifier: ^19.2.7
         version: 19.2.7(react@19.2.7)
     devDependencies:
       '@convex-dev/eslint-plugin':
         specifier: ^2.0.0
         version: 2.0.0(convex@1.42.3(react@19.2.7))(eslint@10.7.0(jiti@2.7.0))(typescript@6.0.3)
       '@tailwindcss/postcss':
-        specifier: ^4.2.2
+        specifier: ^4.3.3
         version: 4.3.3
       '@tanstack/eslint-config':
         specifier: ^0.4.0
         version: 0.4.0(@typescript-eslint/utils@8.64.0(eslint@10.7.0(jiti@2.7.0))(typescript@6.0.3))(eslint@10.7.0(jiti@2.7.0))(typescript@6.0.3)
       '@tanstack/react-router-devtools':
-        specifier: ^1.166.13
+        specifier: ^1.167.0
         version: 1.167.0(@tanstack/react-router@1.170.18(react-dom@19.2.7(react@19.2.7))(react@19.2.7))(@tanstack/router-core@1.171.15)(csstype@3.2.3)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@types/node':
-        specifier: ^24.12.2
+        specifier: ^24.13.3
         version: 24.13.3
       '@types/react':
-        specifier: ^19.2.14
+        specifier: ^19.2.17
         version: 19.2.17
       '@types/react-dom':
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.17)
       '@vitejs/plugin-react':
-        specifier: ^6.0.2
+        specifier: ^6.0.3
         version: 6.0.3(vite@8.1.5(@types/node@24.13.3)(esbuild@0.27.0)(jiti@2.7.0))
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
       prettier:
-        specifier: ^3.8.3
+        specifier: ^3.9.5
         version: 3.9.5
       tailwindcss:
-        specifier: ^4.2.2
+        specifier: ^4.3.3
         version: 4.3.3
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
       vite:
-        specifier: ^8.0.9
+        specifier: ^8.1.5
         version: 8.1.5(@types/node@24.13.3)(esbuild@0.27.0)(jiti@2.7.0)
       vite-tsconfig-paths:
         specifier: ^6.1.1
@@ -2703,8 +2703,8 @@ snapshots:
 
   '@typescript-eslint/project-service@8.58.2(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.58.2(typescript@6.0.3)
-      '@typescript-eslint/types': 8.58.2
+      '@typescript-eslint/tsconfig-utils': 8.64.0(typescript@6.0.3)
+      '@typescript-eslint/types': 8.64.0
       debug: 4.4.3
       typescript: 6.0.3
     transitivePeerDependencies:
