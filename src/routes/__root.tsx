@@ -1,11 +1,13 @@
+import type { ConvexQueryClient } from '@convex-dev/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from '@tanstack/react-router';
 import { getAuth } from '@workos/authkit-tanstack-react-start';
-import { TooltipProvider } from '@/components/ui/tooltip';
-import appCssUrl from '../app.css?url';
-import type { QueryClient } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
 import type { ConvexReactClient } from 'convex/react';
-import type { ConvexQueryClient } from '@convex-dev/react-query';
+import type { ReactNode } from 'react';
+
+import { TooltipProvider } from '@/components/ui/tooltip';
+
+import appCssUrl from '../app.css?url';
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -22,7 +24,7 @@ export const Route = createRootRouteWithContext<{
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'Convex + TanStack Start + WorkOS AuthKit',
+        title: 'Koru — Personal Finance',
       },
     ],
     links: [

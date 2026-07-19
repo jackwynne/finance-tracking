@@ -8,7 +8,13 @@
  * @module
  */
 
-import type * as myFunctions from "../myFunctions.js";
+import type * as finance from "../finance.js";
+import type * as importAction from "../importAction.js";
+import type * as imports from "../imports.js";
+import type * as lib_auth from "../lib/auth.js";
+import type * as lib_finance from "../lib/finance.js";
+import type * as lib_validators from "../lib/validators.js";
+import type * as profiles from "../profiles.js";
 
 import type {
   ApiFromModules,
@@ -17,7 +23,13 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  myFunctions: typeof myFunctions;
+  finance: typeof finance;
+  importAction: typeof importAction;
+  imports: typeof imports;
+  "lib/auth": typeof lib_auth;
+  "lib/finance": typeof lib_finance;
+  "lib/validators": typeof lib_validators;
+  profiles: typeof profiles;
 }>;
 
 /**
