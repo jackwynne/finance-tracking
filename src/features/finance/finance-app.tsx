@@ -76,6 +76,15 @@ function aucklandToday() {
   return `${part('year')}-${part('month')}-${part('day')}`;
 }
 
+function oneYearEarlier(value: string) {
+  const [year, month, day] = value.split('-').map(Number);
+  const previousYear = year - 1;
+  const lastDayOfMonth = new Date(Date.UTC(previousYear, month, 0)).getUTCDate();
+  return [previousYear, month, Math.min(day, lastDayOfMonth)]
+    .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, '0')))
+    .join('-');
+}
+
 function StatusBadge({ status }: { status: string }) {
   const label = status.replace(/([A-Z])/g, ' $1').replace(/^./, (value) => value.toUpperCase());
   const tone =
@@ -215,6 +224,18 @@ function Dashboard() {
   const today = useMemo(() => aucklandToday(), []);
   const [dateFrom, setDateFrom] = useState(`${today.slice(0, 7)}-01`);
   const [dateTo, setDateTo] = useState(today);
+  const ytdStart = `${today.slice(0, 4)}-01-01`;
+  const last12Start = oneYearEarlier(today);
+  const datePreset =
+    dateTo !== today
+      ? 'custom'
+      : dateFrom === ytdStart
+        ? 'ytd'
+        : dateFrom === last12Start
+          ? 'last12'
+          : dateFrom === '1900-01-01'
+            ? 'all'
+            : 'custom';
   const data = useQuery(api.finance.dashboard, { dateFrom, dateTo, currentDate: today });
   const chartData =
     data?.monthly.map((item) => ({
@@ -223,6 +244,14 @@ function Dashboard() {
       Spending: Number(item.spendingMinor) / 100,
       Invested: Number(item.investedMinor) / 100,
     })) ?? [];
+
+  function applyDatePreset(preset: 'ytd' | 'last12' | 'all') {
+    setDateTo(today);
+    if (preset === 'ytd') setDateFrom(ytdStart);
+    else if (preset === 'last12') setDateFrom(last12Start);
+    else setDateFrom('1900-01-01');
+  }
+
   return (
     <>
       <PageHeading
@@ -230,19 +259,47 @@ function Dashboard() {
         title="Your money, clearly."
         description="Settled activity only. Confirmed transfers are removed, investments are separated from spending, and refunds reduce their original category."
         action={
-          <div className="flex gap-2">
-            <Input
-              aria-label="From date"
-              type="date"
-              value={dateFrom}
-              onChange={(event) => setDateFrom(event.target.value)}
-            />
-            <Input
-              aria-label="To date"
-              type="date"
-              value={dateTo}
-              onChange={(event) => setDateTo(event.target.value)}
-            />
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            <div className="flex flex-wrap gap-1.5 sm:justify-end">
+              <Button
+                size="sm"
+                variant={datePreset === 'ytd' ? 'default' : 'outline'}
+                aria-pressed={datePreset === 'ytd'}
+                onClick={() => applyDatePreset('ytd')}
+              >
+                YTD
+              </Button>
+              <Button
+                size="sm"
+                variant={datePreset === 'last12' ? 'default' : 'outline'}
+                aria-pressed={datePreset === 'last12'}
+                onClick={() => applyDatePreset('last12')}
+              >
+                Last 12 months
+              </Button>
+              <Button
+                size="sm"
+                variant={datePreset === 'all' ? 'default' : 'outline'}
+                aria-pressed={datePreset === 'all'}
+                onClick={() => applyDatePreset('all')}
+              >
+                All time
+              </Button>
+            </div>
+            <div className="grid w-full grid-cols-2 gap-2 sm:w-[19rem]">
+              <Input
+                aria-label="From date"
+                type="date"
+                value={dateFrom}
+                onChange={(event) => setDateFrom(event.target.value)}
+              />
+              <Input
+                aria-label="To date"
+                type="date"
+                value={dateTo}
+                onChange={(event) => setDateTo(event.target.value)}
+              />
+            </div>
           </div>
         }
       />
