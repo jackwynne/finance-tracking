@@ -114,7 +114,7 @@ export function FinanceApp({ userName, onSignOut }: FinanceAppProps) {
   return (
     <div className="min-h-screen bg-[#f5f7f2] text-foreground">
       <div className="mx-auto flex min-h-screen max-w-[1600px]">
-        <aside className="hidden w-64 shrink-0 border-r border-black/8 bg-[#10241d] p-5 text-white lg:flex lg:flex-col">
+        <aside className="sticky top-0 hidden h-screen w-64 shrink-0 overflow-y-auto border-r border-black/8 bg-[#10241d] p-5 text-white lg:flex lg:flex-col">
           <div className="mb-9 flex items-center gap-3">
             <div className="grid size-10 place-items-center rounded-xl bg-[#c8f46a] text-[#10241d]">
               <IconChartDonut className="size-5" />
