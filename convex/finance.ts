@@ -279,7 +279,7 @@ export const listCounterparties = query({
     const counterparties = await ctx.db
       .query('counterparties')
       .withIndex('by_ownerId_and_archived', (q) => q.eq('ownerId', profile._id).eq('archived', false))
-      .take(500);
+      .collect();
     const transactions = await ctx.db
       .query('transactions')
       .withIndex('by_ownerId_and_postedDate', (q) => q.eq('ownerId', profile._id))
@@ -293,7 +293,7 @@ export const listCounterparties = query({
         const aliases = await ctx.db
           .query('counterpartyAliases')
           .withIndex('by_counterpartyId', (q) => q.eq('counterpartyId', counterparty._id))
-          .take(100);
+          .collect();
         return {
           ...counterparty,
           aliases,
@@ -325,6 +325,52 @@ export const updateCounterparty = mutation({
     if (args.defaultCategoryId !== undefined) patch.defaultCategoryId = args.defaultCategoryId ?? undefined;
     await ctx.db.patch('counterparties', args.counterpartyId, patch);
     return null;
+  },
+});
+
+const counterpartyClassificationValidator = v.object({
+  counterpartyId: v.id('counterparties'),
+  categoryId: v.union(v.id('categories'), v.null()),
+});
+
+export const importCounterpartyClassifications = mutation({
+  args: { classifications: v.array(counterpartyClassificationValidator) },
+  handler: async (ctx, args) => {
+    const profile = await requireProfile(ctx);
+    if (args.classifications.length === 0) throw new ConvexError('The classification file is empty.');
+    if (args.classifications.length > 500)
+      throw new ConvexError('A classification file can contain at most 500 counterparties.');
+
+    const counterpartyIds = new Set<Id<'counterparties'>>();
+    const categories = new Map<Id<'categories'>, Doc<'categories'>>();
+    const counterparties = new Map<Id<'counterparties'>, Doc<'counterparties'>>();
+
+    for (const classification of args.classifications) {
+      if (counterpartyIds.has(classification.counterpartyId))
+        throw new ConvexError(`Duplicate counterparty ID: ${classification.counterpartyId}`);
+      counterpartyIds.add(classification.counterpartyId);
+
+      const counterparty = assertOwner(await ctx.db.get('counterparties', classification.counterpartyId), profile._id);
+      if (counterparty.archived) throw new ConvexError('Archived counterparties cannot be classified.');
+      counterparties.set(counterparty._id, counterparty);
+
+      if (classification.categoryId && !categories.has(classification.categoryId)) {
+        const category = await ownedCategory(ctx, classification.categoryId, profile._id);
+        if (category.archived) throw new ConvexError('Archived categories cannot be assigned.');
+        categories.set(category._id, category);
+      }
+    }
+
+    let updated = 0;
+    for (const classification of args.classifications) {
+      const counterparty = counterparties.get(classification.counterpartyId)!;
+      const defaultCategoryId = classification.categoryId ?? undefined;
+      if (counterparty.defaultCategoryId === defaultCategoryId) continue;
+      await ctx.db.patch('counterparties', counterparty._id, { defaultCategoryId });
+      updated += 1;
+    }
+
+    return { updated, unchanged: args.classifications.length - updated };
   },
 });
 

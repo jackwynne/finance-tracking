@@ -120,3 +120,79 @@ test('prevents another identity from changing an account', async () => {
     'Record not found',
   );
 });
+
+test('imports validated counterparty classifications atomically', async () => {
+  const t = convexTest(schema, modules);
+  const owner = t.withIdentity({ tokenIdentifier: 'test|owner', subject: 'owner', issuer: 'test' });
+  const stranger = t.withIdentity({ tokenIdentifier: 'test|stranger', subject: 'stranger', issuer: 'test' });
+  await owner.mutation(api.profiles.ensureCurrent, {});
+  await stranger.mutation(api.profiles.ensureCurrent, {});
+
+  const ownerProfile = await owner.query(api.profiles.current, {});
+  const strangerProfile = await stranger.query(api.profiles.current, {});
+  if (!ownerProfile || !strangerProfile) throw new Error('Expected seeded profiles.');
+  const ownerCategories = await owner.query(api.finance.listCategories, {});
+  const groceries = ownerCategories
+    .flatMap((group) => group.categories)
+    .find((category) => category.name === 'Groceries');
+  if (!groceries) throw new Error('Expected the groceries category.');
+
+  const { firstCounterpartyId, secondCounterpartyId, strangerCategoryId } = await owner.run(async (ctx) => {
+    const insertedFirstCounterpartyId = await ctx.db.insert('counterparties', {
+      ownerId: ownerProfile._id,
+      name: 'First merchant',
+      normalizedName: 'first merchant',
+      archived: false,
+    });
+    const insertedSecondCounterpartyId = await ctx.db.insert('counterparties', {
+      ownerId: ownerProfile._id,
+      name: 'Second merchant',
+      normalizedName: 'second merchant',
+      archived: false,
+    });
+    const strangerGroupId = await ctx.db.insert('categoryGroups', {
+      ownerId: strangerProfile._id,
+      name: 'Private group',
+      kind: 'expense',
+      sortOrder: 999,
+      isSystem: false,
+      archived: false,
+    });
+    const insertedStrangerCategoryId = await ctx.db.insert('categories', {
+      ownerId: strangerProfile._id,
+      groupId: strangerGroupId,
+      name: 'Private category',
+      normalizedName: 'private category',
+      sortOrder: 999,
+      isSystem: false,
+      archived: false,
+    });
+    return {
+      firstCounterpartyId: insertedFirstCounterpartyId,
+      secondCounterpartyId: insertedSecondCounterpartyId,
+      strangerCategoryId: insertedStrangerCategoryId,
+    };
+  });
+
+  await expect(
+    owner.mutation(api.finance.importCounterpartyClassifications, {
+      classifications: [
+        { counterpartyId: firstCounterpartyId, categoryId: groceries._id },
+        { counterpartyId: secondCounterpartyId, categoryId: strangerCategoryId },
+      ],
+    }),
+  ).rejects.toThrow('Record not found');
+
+  const afterRejectedImport = await owner.run(async (ctx) => await ctx.db.get('counterparties', firstCounterpartyId));
+  expect(afterRejectedImport?.defaultCategoryId).toBeUndefined();
+
+  const result = await owner.mutation(api.finance.importCounterpartyClassifications, {
+    classifications: [
+      { counterpartyId: firstCounterpartyId, categoryId: groceries._id },
+      { counterpartyId: secondCounterpartyId, categoryId: null },
+    ],
+  });
+  expect(result).toEqual({ updated: 1, unchanged: 1 });
+  const classified = await owner.run(async (ctx) => await ctx.db.get('counterparties', firstCounterpartyId));
+  expect(classified?.defaultCategoryId).toBe(groceries._id);
+});

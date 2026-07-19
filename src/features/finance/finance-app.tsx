@@ -14,6 +14,7 @@ import {
   IconTags,
   IconTrendingDown,
   IconTrendingUp,
+  IconUpload,
   IconUsers,
   IconWallet,
 } from '@tabler/icons-react';
@@ -39,6 +40,46 @@ type FinanceAppProps = {
   userName: string;
   onSignOut: () => void;
 };
+
+const counterpartyClassificationFormat = 'finance-tracking-counterparty-classifications';
+
+type ImportedCounterpartyClassification = {
+  counterpartyId: Id<'counterparties'>;
+  categoryId: Id<'categories'> | null;
+};
+
+function parseCounterpartyClassifications(value: unknown): Array<ImportedCounterpartyClassification> {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('Expected a JSON object exported from the Counterparties screen.');
+  const document = value as Record<string, unknown>;
+  if (document.format !== counterpartyClassificationFormat || document.version !== 1)
+    throw new Error('This is not a supported counterparty classification export.');
+  if (!Array.isArray(document.classifications) || document.classifications.length === 0)
+    throw new Error('The file does not contain any classifications.');
+
+  return document.classifications.map((entry, index) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry))
+      throw new Error(`Classification ${index + 1} is not an object.`);
+    const classification = entry as Record<string, unknown>;
+    if (typeof classification.counterpartyId !== 'string' || !classification.counterpartyId)
+      throw new Error(`Classification ${index + 1} has no counterpartyId.`);
+    if (classification.categoryId !== null && typeof classification.categoryId !== 'string')
+      throw new Error(`Classification ${index + 1} must have a categoryId or null.`);
+    return {
+      counterpartyId: classification.counterpartyId as Id<'counterparties'>,
+      categoryId: classification.categoryId as Id<'categories'> | null,
+    };
+  });
+}
+
+function downloadJson(fileName: string, value: unknown) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: 'application/json' }));
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 const navigation = [
   { id: 'dashboard' as const, label: 'Dashboard', icon: IconLayoutDashboard },
@@ -619,14 +660,112 @@ function Counterparties() {
   const counterparties = useQuery(api.finance.listCounterparties);
   const categories = useQuery(api.finance.listCategories);
   const update = useMutation(api.finance.updateCounterparty);
+  const importClassifications = useMutation(api.finance.importCounterpartyClassifications);
+  const classificationInputRef = useRef<HTMLInputElement>(null);
+  const [isImporting, setIsImporting] = useState(false);
   const flatCategories =
     categories?.flatMap((group) => group.categories.map((category) => ({ ...category, groupName: group.name }))) ?? [];
+
+  const exportClassifications = () => {
+    if (!counterparties || !categories) return;
+    downloadJson(`counterparty-classifications-${aucklandToday()}.json`, {
+      format: counterpartyClassificationFormat,
+      version: 1,
+      instructions: [
+        'Classify every counterparty using the category catalogue in this file.',
+        'Only change categoryId inside classifications. Use an exact category id from categories, or null when no category fits.',
+        'Do not add, remove, or reorder classifications, and do not change counterpartyId.',
+        'Return the complete document as valid JSON with no Markdown fences or commentary.',
+      ],
+      categories: categories.flatMap((group) =>
+        group.categories.map((category) => ({
+          id: category._id,
+          name: category.name,
+          group: group.name,
+          kind: group.kind,
+        })),
+      ),
+      classifications: counterparties.map((counterparty) => ({
+        counterpartyId: counterparty._id,
+        name: counterparty.name,
+        aliases: counterparty.aliases.map((alias) => alias.alias),
+        transactionCount: counterparty.transactionCount,
+        moneyOutMinor: counterparty.moneyOutMinor.toString(),
+        lastSeen: counterparty.lastSeen,
+        categoryId: counterparty.defaultCategoryId ?? null,
+      })),
+    });
+    toast.success(`Exported ${counterparties.length} counterparties.`);
+  };
+
+  const onClassificationFile = async (file: File) => {
+    setIsImporting(true);
+    try {
+      const classifications = parseCounterpartyClassifications(JSON.parse(await file.text()) as unknown);
+      const knownCounterparties = new Set(counterparties?.map((counterparty) => counterparty._id) ?? []);
+      const knownCategories = new Set(flatCategories.map((category) => category._id));
+      const seenCounterparties = new Set<string>();
+      for (const classification of classifications) {
+        if (seenCounterparties.has(classification.counterpartyId))
+          throw new Error(`Counterparty ${classification.counterpartyId} appears more than once.`);
+        seenCounterparties.add(classification.counterpartyId);
+        if (!knownCounterparties.has(classification.counterpartyId))
+          throw new Error(`Counterparty ${classification.counterpartyId} is not in this workspace.`);
+        if (classification.categoryId && !knownCategories.has(classification.categoryId))
+          throw new Error(`Category ${classification.categoryId} is not in this workspace.`);
+      }
+
+      let updated = 0;
+      let unchanged = 0;
+      for (let start = 0; start < classifications.length; start += 250) {
+        const result = await importClassifications({ classifications: classifications.slice(start, start + 250) });
+        updated += result.updated;
+        unchanged += result.unchanged;
+      }
+      toast.success(`Imported ${classifications.length} classifications: ${updated} updated, ${unchanged} unchanged.`);
+    } catch (error) {
+      showError(error instanceof SyntaxError ? new Error('The selected file is not valid JSON.') : error);
+    } finally {
+      setIsImporting(false);
+      if (classificationInputRef.current) classificationInputRef.current.value = '';
+    }
+  };
+
   return (
     <>
       <PageHeading
         eyebrow="Classification"
         title="Counterparties"
         description="Classify a merchant or payer once. Confirmed defaults are reused automatically on future imports."
+        action={
+          <div className="flex flex-wrap gap-2">
+            <input
+              ref={classificationInputRef}
+              className="sr-only"
+              type="file"
+              accept=".json,application/json"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void onClassificationFile(file);
+              }}
+            />
+            <Button
+              variant="outline"
+              disabled={!counterparties?.length || !categories?.length}
+              onClick={exportClassifications}
+            >
+              <IconDownload />
+              Export for AI
+            </Button>
+            <Button
+              disabled={isImporting || !counterparties?.length || !categories?.length}
+              onClick={() => classificationInputRef.current?.click()}
+            >
+              {isImporting ? <IconLoader2 className="animate-spin" /> : <IconUpload />}
+              {isImporting ? 'Importing…' : 'Import classifications'}
+            </Button>
+          </div>
+        }
       />
       <Card>
         <CardContent className="px-0 pt-0">
