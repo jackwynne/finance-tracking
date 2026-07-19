@@ -376,25 +376,53 @@ export const dashboard = query({
         item.reportingKind !== 'transfer' &&
         (!args.accountId || item.accountId === args.accountId),
     );
+    const categoryGroups = await ctx.db
+      .query('categoryGroups')
+      .withIndex('by_ownerId_and_sortOrder', (q) => q.eq('ownerId', profile._id))
+      .take(50);
+    const categories = await ctx.db
+      .query('categories')
+      .withIndex('by_ownerId_and_normalizedName', (q) => q.eq('ownerId', profile._id))
+      .take(500);
+    const investmentGroupIds = new Set(
+      categoryGroups.filter((group) => group.kind === 'investment' && !group.archived).map((group) => group._id),
+    );
+    const investmentCategoryIds = new Set(
+      categories
+        .filter((category) => investmentGroupIds.has(category.groupId) && !category.archived)
+        .map((category) => category._id),
+    );
+    const isInvestment = (item: (typeof included)[number]) =>
+      item.categoryId !== undefined && investmentCategoryIds.has(item.categoryId);
     const incomeMinor = included.reduce(
-      (sum, item) => sum + (item.amountMinor > 0n && item.reportingKind !== 'refund' ? item.amountMinor : 0n),
+      (sum, item) =>
+        sum + (!isInvestment(item) && item.amountMinor > 0n && item.reportingKind !== 'refund' ? item.amountMinor : 0n),
       0n,
     );
     const spendingMinor = included.reduce(
       (sum, item) =>
-        sum + (item.amountMinor < 0n ? -item.amountMinor : item.reportingKind === 'refund' ? -item.amountMinor : 0n),
+        sum +
+        (!isInvestment(item)
+          ? item.amountMinor < 0n
+            ? -item.amountMinor
+            : item.reportingKind === 'refund'
+              ? -item.amountMinor
+              : 0n
+          : 0n),
       0n,
     );
+    const investedMinor = included.reduce((sum, item) => sum + (isInvestment(item) ? -item.amountMinor : 0n), 0n);
 
     const categoryTotals = new Map<string, bigint>();
     const counterpartyTotals = new Map<string, bigint>();
-    const monthly = new Map<string, { income: bigint; spending: bigint }>();
+    const monthly = new Map<string, { income: bigint; spending: bigint; invested: bigint }>();
     for (const item of included) {
-      if (item.amountMinor < 0n || item.reportingKind === 'refund') {
+      const investment = isInvestment(item);
+      if (!investment && (item.amountMinor < 0n || item.reportingKind === 'refund')) {
         const categoryKey = item.categoryId ?? 'uncategorized';
         categoryTotals.set(categoryKey, (categoryTotals.get(categoryKey) ?? 0n) + -item.amountMinor);
       }
-      if (item.counterpartyId) {
+      if (!investment && item.counterpartyId) {
         counterpartyTotals.set(
           item.counterpartyId,
           (counterpartyTotals.get(item.counterpartyId) ?? 0n) +
@@ -402,8 +430,9 @@ export const dashboard = query({
         );
       }
       const month = item.postedDate.slice(0, 7);
-      const point = monthly.get(month) ?? { income: 0n, spending: 0n };
-      if (item.amountMinor > 0n && item.reportingKind !== 'refund') point.income += item.amountMinor;
+      const point = monthly.get(month) ?? { income: 0n, spending: 0n, invested: 0n };
+      if (investment) point.invested += -item.amountMinor;
+      else if (item.amountMinor > 0n && item.reportingKind !== 'refund') point.income += item.amountMinor;
       else if (item.reportingKind === 'refund') point.spending -= item.amountMinor;
       else point.spending += -item.amountMinor;
       monthly.set(month, point);
@@ -414,10 +443,6 @@ export const dashboard = query({
       .withIndex('by_ownerId_and_archived', (q) => q.eq('ownerId', profile._id).eq('archived', false))
       .take(100);
     const netWorthMinor = accounts.reduce((sum, account) => sum + (account.currentLedgerMinor ?? 0n), 0n);
-    const categories = await ctx.db
-      .query('categories')
-      .withIndex('by_ownerId_and_normalizedName', (q) => q.eq('ownerId', profile._id))
-      .take(500);
     const counterparties = await ctx.db
       .query('counterparties')
       .withIndex('by_ownerId_and_archived', (q) => q.eq('ownerId', profile._id).eq('archived', false))
@@ -425,7 +450,8 @@ export const dashboard = query({
     return {
       incomeMinor,
       spendingMinor,
-      netCashFlowMinor: incomeMinor - spendingMinor,
+      investedMinor,
+      netCashFlowMinor: incomeMinor - spendingMinor - investedMinor,
       netWorthMinor,
       transactionCount: included.length,
       categoryTotals: [...categoryTotals.entries()]
@@ -448,7 +474,12 @@ export const dashboard = query({
         .slice(0, 6),
       monthly: [...monthly.entries()]
         .sort(([a], [b]) => a.localeCompare(b))
-        .map(([month, values]) => ({ month, incomeMinor: values.income, spendingMinor: values.spending })),
+        .map(([month, values]) => ({
+          month,
+          incomeMinor: values.income,
+          spendingMinor: values.spending,
+          investedMinor: values.invested,
+        })),
       accounts,
       asOf: args.currentDate,
     };

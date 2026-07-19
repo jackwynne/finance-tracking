@@ -30,12 +30,13 @@ export default defineSchema({
     baseCurrency: v.string(),
     timezone: v.string(),
     weekStartsOn: v.number(),
+    categorySeedVersion: v.optional(v.number()),
   }).index('by_tokenIdentifier', ['tokenIdentifier']),
 
   categoryGroups: defineTable({
     ownerId: v.id('profiles'),
     name: v.string(),
-    kind: v.union(v.literal('income'), v.literal('expense')),
+    kind: v.union(v.literal('income'), v.literal('expense'), v.literal('investment')),
     sortOrder: v.number(),
     isSystem: v.boolean(),
     archived: v.boolean(),

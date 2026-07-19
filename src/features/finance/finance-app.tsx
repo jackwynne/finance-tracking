@@ -8,6 +8,7 @@ import {
   IconLayoutDashboard,
   IconLoader2,
   IconLogout,
+  IconPigMoney,
   IconReceipt2,
   IconRefresh,
   IconTags,
@@ -94,7 +95,7 @@ export function FinanceApp({ userName, onSignOut }: FinanceAppProps) {
   const ensureProfile = useMutation(api.profiles.ensureCurrent);
 
   useEffect(() => {
-    if (profile === null)
+    if (profile !== undefined)
       void ensureProfile().catch((error) =>
         toast.error(error instanceof Error ? error.message : 'Could not initialize your profile.'),
       );
@@ -220,13 +221,14 @@ function Dashboard() {
       month: item.month.slice(5),
       Income: Number(item.incomeMinor) / 100,
       Spending: Number(item.spendingMinor) / 100,
+      Invested: Number(item.investedMinor) / 100,
     })) ?? [];
   return (
     <>
       <PageHeading
         eyebrow="Overview"
         title="Your money, clearly."
-        description="Settled activity only. Confirmed transfers are removed from cash-flow totals and refunds reduce their original spending category."
+        description="Settled activity only. Confirmed transfers are removed, investments are separated from spending, and refunds reduce their original category."
         action={
           <div className="flex gap-2">
             <Input
@@ -244,7 +246,7 @@ function Dashboard() {
           </div>
         }
       />
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         <Metric
           title="Net worth"
           value={formatMoney(data?.netWorthMinor)}
@@ -265,9 +267,16 @@ function Dashboard() {
           icon={IconTrendingDown}
         />
         <Metric
+          title="Invested"
+          value={formatMoney(data?.investedMinor)}
+          detail="Long-term savings and asset purchases"
+          icon={IconPigMoney}
+          positive
+        />
+        <Metric
           title="Net cash flow"
           value={formatMoney(data?.netCashFlowMinor)}
-          detail="Income less spending"
+          detail="Income less spending and investments"
           icon={IconArrowsExchange}
           positive={Number(data?.netCashFlowMinor ?? 0n) >= 0}
         />
@@ -276,7 +285,7 @@ function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Cash-flow trend</CardTitle>
-            <CardDescription>Income and spending by month</CardDescription>
+            <CardDescription>Income, spending, and investing by month</CardDescription>
           </CardHeader>
           <CardContent className="h-72">
             {chartData.length ? (
@@ -287,6 +296,7 @@ function Dashboard() {
                   <Tooltip formatter={(value) => money.format(Number(value))} cursor={{ fill: '#edf1ea' }} />
                   <Bar dataKey="Income" fill="#225c49" radius={[5, 5, 0, 0]} />
                   <Bar dataKey="Spending" fill="#c8f46a" radius={[5, 5, 0, 0]} />
+                  <Bar dataKey="Invested" fill="#8f6f38" radius={[5, 5, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
