@@ -1,33 +1,15 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 import { getAuth } from '@workos/authkit-tanstack-react-start';
-import { useAuth } from '@workos/authkit-tanstack-react-start/client';
-import { Authenticated, Unauthenticated } from 'convex/react';
 
 import { Button } from '@/components/ui/button';
-import { FinanceApp } from '@/features/finance/finance-app';
 
 export const Route = createFileRoute('/')({
-  component: Home,
+  component: Welcome,
   loader: async () => {
     const { user } = await getAuth();
-    return { user };
+    if (user) throw redirect({ to: '/dashboard', search: { from: undefined, to: undefined } });
   },
 });
-
-function Home() {
-  const { user } = Route.useLoaderData();
-  const { signOut } = useAuth();
-  return (
-    <>
-      <Authenticated>
-        <FinanceApp userName={user?.email ?? user?.firstName ?? 'Signed-in user'} onSignOut={() => signOut()} />
-      </Authenticated>
-      <Unauthenticated>
-        <Welcome />
-      </Unauthenticated>
-    </>
-  );
-}
 
 function Welcome() {
   return (

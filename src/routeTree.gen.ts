@@ -14,7 +14,12 @@ import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as CallbackRouteImport } from './routes/callback'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedAuthenticatedRouteImport } from './routes/_authenticated/authenticated'
+import { Route as AuthenticatedTransactionsRouteImport } from './routes/_authenticated/transactions'
+import { Route as AuthenticatedInvestmentsRouteImport } from './routes/_authenticated/investments'
+import { Route as AuthenticatedImportsRouteImport } from './routes/_authenticated/imports'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedCounterpartiesRouteImport } from './routes/_authenticated/counterparties'
+import { Route as AuthenticatedAccountsRouteImport } from './routes/_authenticated/accounts'
 
 const SignUpRoute = SignUpRouteImport.update({
   id: '/sign-up',
@@ -40,26 +45,63 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedAuthenticatedRoute =
-  AuthenticatedAuthenticatedRouteImport.update({
-    id: '/authenticated',
-    path: '/authenticated',
+const AuthenticatedTransactionsRoute =
+  AuthenticatedTransactionsRouteImport.update({
+    id: '/transactions',
+    path: '/transactions',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedInvestmentsRoute =
+  AuthenticatedInvestmentsRouteImport.update({
+    id: '/investments',
+    path: '/investments',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedImportsRoute = AuthenticatedImportsRouteImport.update({
+  id: '/imports',
+  path: '/imports',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedCounterpartiesRoute =
+  AuthenticatedCounterpartiesRouteImport.update({
+    id: '/counterparties',
+    path: '/counterparties',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedAccountsRoute = AuthenticatedAccountsRouteImport.update({
+  id: '/accounts',
+  path: '/accounts',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/callback': typeof CallbackRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
-  '/authenticated': typeof AuthenticatedAuthenticatedRoute
+  '/accounts': typeof AuthenticatedAccountsRoute
+  '/counterparties': typeof AuthenticatedCounterpartiesRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/imports': typeof AuthenticatedImportsRoute
+  '/investments': typeof AuthenticatedInvestmentsRoute
+  '/transactions': typeof AuthenticatedTransactionsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/callback': typeof CallbackRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
-  '/authenticated': typeof AuthenticatedAuthenticatedRoute
+  '/accounts': typeof AuthenticatedAccountsRoute
+  '/counterparties': typeof AuthenticatedCounterpartiesRoute
+  '/dashboard': typeof AuthenticatedDashboardRoute
+  '/imports': typeof AuthenticatedImportsRoute
+  '/investments': typeof AuthenticatedInvestmentsRoute
+  '/transactions': typeof AuthenticatedTransactionsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -68,13 +110,38 @@ export interface FileRoutesById {
   '/callback': typeof CallbackRoute
   '/sign-in': typeof SignInRoute
   '/sign-up': typeof SignUpRoute
-  '/_authenticated/authenticated': typeof AuthenticatedAuthenticatedRoute
+  '/_authenticated/accounts': typeof AuthenticatedAccountsRoute
+  '/_authenticated/counterparties': typeof AuthenticatedCounterpartiesRoute
+  '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/imports': typeof AuthenticatedImportsRoute
+  '/_authenticated/investments': typeof AuthenticatedInvestmentsRoute
+  '/_authenticated/transactions': typeof AuthenticatedTransactionsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/callback' | '/sign-in' | '/sign-up' | '/authenticated'
+  fullPaths:
+    | '/'
+    | '/callback'
+    | '/sign-in'
+    | '/sign-up'
+    | '/accounts'
+    | '/counterparties'
+    | '/dashboard'
+    | '/imports'
+    | '/investments'
+    | '/transactions'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/callback' | '/sign-in' | '/sign-up' | '/authenticated'
+  to:
+    | '/'
+    | '/callback'
+    | '/sign-in'
+    | '/sign-up'
+    | '/accounts'
+    | '/counterparties'
+    | '/dashboard'
+    | '/imports'
+    | '/investments'
+    | '/transactions'
   id:
     | '__root__'
     | '/'
@@ -82,7 +149,12 @@ export interface FileRouteTypes {
     | '/callback'
     | '/sign-in'
     | '/sign-up'
-    | '/_authenticated/authenticated'
+    | '/_authenticated/accounts'
+    | '/_authenticated/counterparties'
+    | '/_authenticated/dashboard'
+    | '/_authenticated/imports'
+    | '/_authenticated/investments'
+    | '/_authenticated/transactions'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -130,22 +202,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/authenticated': {
-      id: '/_authenticated/authenticated'
-      path: '/authenticated'
-      fullPath: '/authenticated'
-      preLoaderRoute: typeof AuthenticatedAuthenticatedRouteImport
+    '/_authenticated/transactions': {
+      id: '/_authenticated/transactions'
+      path: '/transactions'
+      fullPath: '/transactions'
+      preLoaderRoute: typeof AuthenticatedTransactionsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/investments': {
+      id: '/_authenticated/investments'
+      path: '/investments'
+      fullPath: '/investments'
+      preLoaderRoute: typeof AuthenticatedInvestmentsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/imports': {
+      id: '/_authenticated/imports'
+      path: '/imports'
+      fullPath: '/imports'
+      preLoaderRoute: typeof AuthenticatedImportsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/dashboard': {
+      id: '/_authenticated/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/counterparties': {
+      id: '/_authenticated/counterparties'
+      path: '/counterparties'
+      fullPath: '/counterparties'
+      preLoaderRoute: typeof AuthenticatedCounterpartiesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/accounts': {
+      id: '/_authenticated/accounts'
+      path: '/accounts'
+      fullPath: '/accounts'
+      preLoaderRoute: typeof AuthenticatedAccountsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
   }
 }
 
 interface AuthenticatedRouteChildren {
-  AuthenticatedAuthenticatedRoute: typeof AuthenticatedAuthenticatedRoute
+  AuthenticatedAccountsRoute: typeof AuthenticatedAccountsRoute
+  AuthenticatedCounterpartiesRoute: typeof AuthenticatedCounterpartiesRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedImportsRoute: typeof AuthenticatedImportsRoute
+  AuthenticatedInvestmentsRoute: typeof AuthenticatedInvestmentsRoute
+  AuthenticatedTransactionsRoute: typeof AuthenticatedTransactionsRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedAuthenticatedRoute: AuthenticatedAuthenticatedRoute,
+  AuthenticatedAccountsRoute: AuthenticatedAccountsRoute,
+  AuthenticatedCounterpartiesRoute: AuthenticatedCounterpartiesRoute,
+  AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedImportsRoute: AuthenticatedImportsRoute,
+  AuthenticatedInvestmentsRoute: AuthenticatedInvestmentsRoute,
+  AuthenticatedTransactionsRoute: AuthenticatedTransactionsRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
