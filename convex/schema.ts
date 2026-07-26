@@ -22,6 +22,18 @@ const importStatus = v.union(
 
 const importFormat = v.union(v.literal('ofx'), v.literal('xlsx'));
 
+const investmentImportStatus = v.union(
+  v.literal('uploaded'),
+  v.literal('parsing'),
+  v.literal('ready'),
+  v.literal('committing'),
+  v.literal('committed'),
+  v.literal('failed'),
+  v.literal('rolledBack'),
+);
+
+const investmentImportFormat = v.union(v.literal('shareRegistryCsv'), v.literal('fundCsv'));
+
 export default defineSchema({
   profiles: defineTable({
     tokenIdentifier: v.string(),
@@ -229,4 +241,105 @@ export default defineSchema({
     .index('by_ownerId_and_status', ['ownerId', 'status'])
     .index('by_fromTransactionId', ['fromTransactionId'])
     .index('by_toTransactionId', ['toTransactionId']),
+
+  investmentAccounts: defineTable({
+    ownerId: v.id('profiles'),
+    name: v.string(),
+    provider: v.string(),
+    currency: v.string(),
+    sourceKeyHash: v.string(),
+    archived: v.boolean(),
+  })
+    .index('by_ownerId_and_archived', ['ownerId', 'archived'])
+    .index('by_ownerId_and_sourceKeyHash', ['ownerId', 'sourceKeyHash']),
+
+  investmentImports: defineTable({
+    ownerId: v.id('profiles'),
+    storageId: v.id('_storage'),
+    fileName: v.string(),
+    contentType: v.optional(v.string()),
+    size: v.number(),
+    sha256: v.string(),
+    format: v.optional(investmentImportFormat),
+    status: investmentImportStatus,
+    accountId: v.optional(v.id('investmentAccounts')),
+    detectedAccountName: v.optional(v.string()),
+    provider: v.optional(v.string()),
+    currency: v.optional(v.string()),
+    sourceKeyHash: v.optional(v.string()),
+    dateFrom: v.optional(v.string()),
+    dateTo: v.optional(v.string()),
+    totalRows: v.number(),
+    readyRows: v.number(),
+    duplicateRows: v.number(),
+    invalidRows: v.number(),
+    committedRows: v.number(),
+    error: v.optional(v.string()),
+    startedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    rolledBackAt: v.optional(v.number()),
+  })
+    .index('by_ownerId_and_startedAt', ['ownerId', 'startedAt'])
+    .index('by_ownerId_and_sha256', ['ownerId', 'sha256']),
+
+  investmentImportRows: defineTable({
+    ownerId: v.id('profiles'),
+    importId: v.id('investmentImports'),
+    rowNumber: v.number(),
+    status: v.union(
+      v.literal('ready'),
+      v.literal('duplicate'),
+      v.literal('invalid'),
+      v.literal('committed'),
+      v.literal('rolledBack'),
+    ),
+    format: investmentImportFormat,
+    dedupeKey: v.string(),
+    effectiveDate: v.string(),
+    instrumentCode: v.optional(v.string()),
+    transactionType: v.string(),
+    description: v.string(),
+    units: v.string(),
+    unitPrice: v.optional(v.string()),
+    amountMinor: v.optional(v.int64()),
+    currency: v.string(),
+    runningBalanceUnits: v.optional(v.string()),
+    sourceJson: v.string(),
+    transactionId: v.optional(v.id('investmentTransactions')),
+    error: v.optional(v.string()),
+  })
+    .index('by_importId_and_rowNumber', ['importId', 'rowNumber'])
+    .index('by_importId_and_status', ['importId', 'status']),
+
+  investmentTransactions: defineTable({
+    ownerId: v.id('profiles'),
+    accountId: v.id('investmentAccounts'),
+    effectiveDate: v.string(),
+    instrumentCode: v.optional(v.string()),
+    transactionType: v.string(),
+    description: v.string(),
+    units: v.string(),
+    unitPrice: v.optional(v.string()),
+    amountMinor: v.optional(v.int64()),
+    currency: v.string(),
+    runningBalanceUnits: v.optional(v.string()),
+    createdByImportId: v.id('investmentImports'),
+    voided: v.boolean(),
+  })
+    .index('by_ownerId_and_effectiveDate', ['ownerId', 'effectiveDate'])
+    .index('by_ownerId_and_accountId_and_effectiveDate', ['ownerId', 'accountId', 'effectiveDate']),
+
+  investmentTransactionSources: defineTable({
+    ownerId: v.id('profiles'),
+    transactionId: v.id('investmentTransactions'),
+    importId: v.id('investmentImports'),
+    importRowId: v.id('investmentImportRows'),
+    format: investmentImportFormat,
+    dedupeKey: v.string(),
+    sourceJson: v.string(),
+    voided: v.boolean(),
+  })
+    .index('by_ownerId_and_dedupeKey', ['ownerId', 'dedupeKey'])
+    .index('by_transactionId', ['transactionId'])
+    .index('by_importId', ['importId']),
 });

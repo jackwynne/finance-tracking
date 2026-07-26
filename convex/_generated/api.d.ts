@@ -11,8 +11,11 @@
 import type * as finance from "../finance.js";
 import type * as importAction from "../importAction.js";
 import type * as imports from "../imports.js";
+import type * as investmentImportAction from "../investmentImportAction.js";
+import type * as investmentImports from "../investmentImports.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_finance from "../lib/finance.js";
+import type * as lib_investmentValidators from "../lib/investmentValidators.js";
 import type * as lib_validators from "../lib/validators.js";
 import type * as profiles from "../profiles.js";
 
@@ -26,8 +29,11 @@ declare const fullApi: ApiFromModules<{
   finance: typeof finance;
   importAction: typeof importAction;
   imports: typeof imports;
+  investmentImportAction: typeof investmentImportAction;
+  investmentImports: typeof investmentImports;
   "lib/auth": typeof lib_auth;
   "lib/finance": typeof lib_finance;
+  "lib/investmentValidators": typeof lib_investmentValidators;
   "lib/validators": typeof lib_validators;
   profiles: typeof profiles;
 }>;
