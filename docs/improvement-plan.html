@@ -1,0 +1,1086 @@
+<!doctype html>
+<html lang="en-NZ">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Finance app review, production file classification workflow and investment exposure implementation plan."
+    />
+    <title>Finance app review and improvement plan</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #243238;
+        --muted: #596b73;
+        --accent: #136b5c;
+        --border: #d8e1e2;
+        --paper: #ffffff;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 24px;
+      }
+      body {
+        margin: 0;
+        background: #f2f5f4;
+        color: var(--ink);
+        font:
+          16px/1.65 system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          sans-serif;
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 3px;
+      }
+      a:hover {
+        color: #084a40;
+      }
+      a:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 4px;
+        border-radius: 2px;
+      }
+      .skip-link {
+        position: absolute;
+        left: 12px;
+        top: -80px;
+        background: white;
+        padding: 12px;
+        z-index: 2;
+      }
+      .skip-link:focus {
+        top: 12px;
+      }
+      header {
+        padding: 30px max(24px, calc((100vw - 1280px) / 2));
+        background: #173c35;
+        color: #fff;
+      }
+      header p {
+        margin: 0;
+        font-size: 14px;
+      }
+      header .name {
+        font-size: 20px;
+        font-weight: 650;
+        letter-spacing: -0.03em;
+      }
+      .layout {
+        display: grid;
+        grid-template-columns: 240px minmax(0, 1fr);
+        gap: 36px;
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 36px 24px 64px;
+      }
+      nav {
+        align-self: start;
+        position: sticky;
+        top: 24px;
+        font-size: 14px;
+      }
+      nav h2 {
+        margin: 0 0 12px;
+        font-size: 12px;
+        color: var(--muted);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      nav a {
+        display: block;
+        padding: 8px 10px;
+        margin: 2px 0;
+        border-left: 2px solid var(--border);
+        text-decoration: none;
+        line-height: 1.4;
+      }
+      nav a:hover {
+        border-color: var(--accent);
+        background: #e4eeea;
+      }
+      main {
+        min-width: 0;
+        padding: 40px;
+        background: var(--paper);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      h1 {
+        font-size: clamp(28px, 3vw, 42px);
+        line-height: 1.15;
+        letter-spacing: -0.04em;
+        margin: 0 0 24px;
+        max-width: 680px;
+      }
+      h2 {
+        font-size: 25px;
+        line-height: 1.3;
+        letter-spacing: -0.025em;
+        margin: 52px 0 18px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+      }
+      h3 {
+        font-size: 19px;
+        margin: 30px 0 12px;
+      }
+      p {
+        margin: 0 0 18px;
+      }
+      li {
+        padding-left: 5px;
+        margin: 10px 0;
+      }
+      ul,
+      ol {
+        padding-left: 22px;
+        margin: 0 0 24px;
+      }
+      ol li::marker {
+        color: var(--accent);
+        font-weight: 700;
+      }
+      code {
+        background: #eef3f1;
+        padding: 2px 5px;
+        border-radius: 4px;
+        color: #294d43;
+        font:
+          0.86em/1.6 ui-monospace,
+          SFMono-Regular,
+          Consolas,
+          monospace;
+        overflow-wrap: anywhere;
+      }
+      .table-wrap {
+        margin: 22px 0 28px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        overflow: hidden;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 14px;
+        line-height: 1.55;
+        table-layout: fixed;
+      }
+      th {
+        text-align: left;
+        background: #e9f0ed;
+        color: #234e42;
+        font-weight: 650;
+      }
+      th,
+      td {
+        padding: 14px;
+        vertical-align: top;
+        overflow-wrap: anywhere;
+      }
+      td {
+        border-top: 1px solid var(--border);
+      }
+      tr:nth-child(even) td {
+        background: #f8faf9;
+      }
+      table th:first-child {
+        width: 21%;
+      }
+      .note {
+        margin: 28px 0;
+        padding: 18px 20px;
+        border-left: 4px solid var(--accent);
+        background: #eff6f2;
+      }
+      .note strong {
+        display: block;
+        margin-bottom: 5px;
+      }
+      .note p {
+        margin: 0;
+      }
+      footer {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 0 24px 32px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      @media (max-width: 1050px) {
+        .layout {
+          grid-template-columns: 190px minmax(0, 1fr);
+          gap: 20px;
+        }
+        main {
+          padding: 28px;
+        }
+      }
+      @media (max-width: 760px) {
+        header {
+          padding: 22px 20px;
+        }
+        .layout {
+          display: block;
+          padding: 20px 12px 36px;
+        }
+        nav {
+          position: static;
+          margin: 0 8px 24px;
+        }
+        nav a {
+          padding: 7px 10px;
+        }
+        main {
+          padding: 24px 20px;
+        }
+        h2 {
+          font-size: 22px;
+          margin-top: 36px;
+        }
+        table,
+        tbody,
+        tr,
+        td {
+          display: block;
+          width: 100%;
+        }
+        thead {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          overflow: hidden;
+          clip-path: inset(50%);
+        }
+        tr {
+          border-top: 1px solid var(--border);
+          padding: 12px 0;
+        }
+        tr:first-child {
+          border-top: 0;
+        }
+        td {
+          padding: 6px 14px;
+          border: 0;
+        }
+        td::before {
+          content: attr(data-label);
+          display: block;
+          color: var(--muted);
+          font-size: 11px;
+          font-weight: 650;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          margin-bottom: 3px;
+        }
+        tr:nth-child(even),
+        tr:nth-child(even) td {
+          background: #f8faf9;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+      @media print {
+        @page {
+          margin: 16mm;
+        }
+        body {
+          background: white;
+          font-size: 10pt;
+        }
+        header {
+          background: white;
+          color: #173c35;
+          padding: 0 0 12px;
+          border-bottom: 1px solid #aaa;
+        }
+        .layout {
+          display: block;
+          padding: 0;
+        }
+        nav,
+        .skip-link,
+        footer {
+          display: none;
+        }
+        main {
+          border: 0;
+          padding: 20px 0 0;
+        }
+        h1 {
+          font-size: 26pt;
+        }
+        h2 {
+          font-size: 17pt;
+          break-after: avoid;
+        }
+        h3 {
+          break-after: avoid;
+        }
+        table {
+          font-size: 9pt;
+        }
+        tr {
+          break-inside: avoid;
+        }
+        th,
+        td {
+          padding: 8px;
+        }
+        a {
+          color: inherit;
+        }
+        .note {
+          break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a class="skip-link" href="#plan">Skip to the plan</a>
+    <header>
+      <p class="name">Finance app improvement plan</p>
+      <p>Reviewed 30 September 2026 · Personal finance and investment tracking</p>
+    </header>
+    <div class="layout">
+      <nav aria-label="Plan sections">
+        <h2>Contents</h2>
+        <a href="#portfolio-scope">Portfolio scope</a
+        ><a href="#findings-in-the-current-app">Findings in the current app</a
+        ><a href="#the-transaction-review-workflow">The transaction review workflow</a
+        ><a href="#a-portfolio-model-that-supports-real-holdings">A portfolio model that supports real holdings</a
+        ><a href="#getting-the-underlying-investments">Getting the underlying investments</a
+        ><a href="#calculating-exposure-and-overlap">Calculating exposure and overlap</a
+        ><a href="#implementation-order-and-completion-checks">Implementation order and completion checks</a
+        ><a href="#review-verification-and-remaining-limits">Review verification and remaining limits</a>
+      </nav>
+      <main id="plan">
+        <h1 id="finance-app-review-and-improvement-plan">Finance app review and improvement plan</h1>
+        <p>
+          Reviewed on 30 September 2026. The first release should make it easy for Codex to classify the full
+          transaction ledger, then show where the investment portfolio is actually invested. Keep Convex, TanStack Start
+          and the existing import staging. Redesign the finance model where needed, with fresh imports instead of legacy
+          compatibility code.
+        </p>
+        <p>
+          The chosen classification workflow is a file exported from production and processed in Codex. Export,
+          validation, preview, apply and undo must work without editing transactions through the UI. An AI service
+          inside the app can wait.
+        </p>
+        <aside class="note" aria-label="Recommended first deliverable">
+          <strong>Start with transaction classification</strong>
+          <p>
+            Fix the financial rules, then build the production file export, Codex review and bulk apply workflow. Add
+            portfolio positions and fund breakdowns after that.
+          </p>
+        </aside>
+        <h2 id="portfolio-scope">Portfolio scope</h2>
+        <p>
+          The supplied screenshot identifies Smart USG, UST, EUF, TWF and MDZ, Simplicity KiwiSaver High Growth,
+          Simplicity KiwiSaver Growth, and Hostplus Indexed High Growth. The user confirmed High Growth is the current
+          KiwiSaver fund and that Vanguard investments are held through Smart. Treat the Growth entry as a separate
+          instrument and possible historical holding until a current statement confirms its balance. The screenshot
+          supplies identities, not units or current valuations.
+        </p>
+        <p>
+          Include Hostplus in the portfolio model and support an AUD statement balance from the start. Automate its
+          underlying holdings after the Smart and Simplicity sources work. Keep retirement balances identifiable so
+          total wealth and accessible investments can be viewed separately.
+        </p>
+        <h2 id="findings-in-the-current-app">Findings in the current app</h2>
+        <p>
+          The code review found the issues below. Signed-in checks through the T3 Code browser confirmed additional
+          reporting and review problems, recorded separately below. Browser observations describe the current
+          development dataset, which also contains example transactions.
+        </p>
+        <p>
+          A temporary Convex test confirmed an additional rollback bug. A synthetic 30-row investment import committed
+          successfully, but rollback marked the job <code>rolledBack</code> with 5 transactions still active. Both bank
+          and investment rollback handlers read the first 25 source rows before filtering out voided rows. On the next
+          batch they reread those same voided rows and stop. The bank variant has the same code pattern but was not
+          separately reproduced. Fix this before depending on rollback for any reimport work. The temporary reproduction
+          was removed after recording the result; it did not touch the deployed database.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Priority</th>
+                <th scope="col">Finding and evidence</th>
+                <th scope="col">Consequence</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Priority">First</td>
+                <td data-label="Finding and evidence">
+                  <code>convex/finance.ts</code>, <code>updateTransaction</code>, patches the counterparty default even
+                  for <code>scope: &#x27;transaction&#x27;</code>.
+                </td>
+                <td data-label="Consequence">A one-off correction silently becomes the rule for future imports.</td>
+              </tr>
+              <tr>
+                <td data-label="Priority">First</td>
+                <td data-label="Finding and evidence">
+                  <code>importCounterpartyClassifications</code> only updates counterparty defaults. The UI reports
+                  imported classifications without applying them to existing transactions.
+                </td>
+                <td data-label="Consequence">An AI-classified file can leave historical spending uncategorized.</td>
+              </tr>
+              <tr>
+                <td data-label="Priority">First</td>
+                <td data-label="Finding and evidence">
+                  <code>convex/imports.ts</code>, <code>suggestLinks</code>, confirms transfers using opposite amounts
+                  on different accounts within three days, without checking currencies or stronger evidence.
+                </td>
+                <td data-label="Consequence">
+                  An unrelated expense and receipt can disappear from spending and income.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Priority">First</td>
+                <td data-label="Finding and evidence">
+                  <code>convex/finance.ts</code>, <code>dashboard</code>, sums bank balances as net worth. It excludes
+                  the investment ledger and adds currencies without conversion. Its displayed date is the current date
+                  rather than the dates of the balances.
+                </td>
+                <td data-label="Consequence">
+                  The net worth figure is incomplete and can imply fresher data than it contains.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Priority">Next</td>
+                <td data-label="Finding and evidence">
+                  <code>src/routes/_authenticated/counterparties.tsx</code>, <code>exportClassifications</code>, exports
+                  merchant names, aliases and aggregate counts. It omits transaction examples, decision reasons,
+                  uncertainty and reporting treatment.
+                </td>
+                <td data-label="Consequence">
+                  Codex lacks the evidence needed for mixed-purpose merchants, transfers, refunds and investment
+                  payments.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Priority">Next</td>
+                <td data-label="Finding and evidence">
+                  <code>src/routes/_authenticated/transactions.tsx</code> has account/category filters and individual
+                  category dropdowns. Search exists in the backend but is not exposed here.
+                </td>
+                <td data-label="Consequence">
+                  No uncategorized queue, bulk review, transaction details, split editor or visible classification
+                  history.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Priority">Next</td>
+                <td data-label="Finding and evidence">
+                  <code>convex/finance.ts</code> reads at most 5,000 transactions for merchant statistics and dashboard
+                  totals. <code>listTransactions</code> filters account/category after paginating the date index.
+                </td>
+                <td data-label="Consequence">
+                  Totals can be truncated and filtered pages can appear empty while matches remain later in the ledger.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Priority">Next</td>
+                <td data-label="Finding and evidence">
+                  <code>convex/investmentImports.ts</code>, <code>listTransactions</code>, returns only the newest 500
+                  rows. The investment screen is an activity table.
+                </td>
+                <td data-label="Consequence">
+                  There is no complete position calculation, current valuation, asset allocation or fund breakdown.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Priority">Next</td>
+                <td data-label="Finding and evidence">
+                  <code>convex/investmentImportAction.ts</code>, <code>parseFundCsv</code>, records a generic managed
+                  fund with no instrument identity. Its account key can come from a transaction-description prefix or
+                  filename.
+                </td>
+                <td data-label="Consequence">
+                  Fund switches cannot be represented reliably; account identity can depend on an employer reference or
+                  renamed file.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Priority">Next</td>
+                <td data-label="Finding and evidence">
+                  <code>convex/lib/finance.ts</code>, <code>toMinorUnits</code>, uses floating-point parsing and
+                  rounding. <code>finance-ui.tsx</code> formats every amount as NZD.
+                </td>
+                <td data-label="Consequence">
+                  Exact amount parsing and currency-aware reporting need attention before adding AUD superannuation.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <h3 id="signed-in-browser-findings">Signed-in browser findings</h3>
+        <p>
+          Tested the dashboard, transactions and counterparties through the T3 Code browser at a 1280 × 800 viewport.
+          The remaining Investments, Accounts, Imports and mobile checks were interrupted when the T3 preview host
+          disconnected.
+        </p>
+        <ul>
+          <li>
+            The all-time dashboard loaded 569 settled transactions. Smart direct-debit investment payments appeared in
+            top spending while the invested total was zero. The app needs reporting treatment as well as spending
+            categories.
+          </li>
+          <li>
+            Four account cards had the same credit-card label and balance. The transaction account filter also contained
+            four indistinguishable credit-card entries. Investigate source identity and duplicate account creation
+            before trusting aggregate balances. Identical display labels alone do not establish that the underlying
+            accounts are duplicates.
+          </li>
+          <li>
+            Net worth was labelled as at 30 September while the account balances were dated June or July. Display each
+            balance date and the age and completeness of the aggregate.
+          </li>
+          <li>
+            Transaction pagination loaded 50 rows, then 100 after clicking Load more. Of the initial 50 rows, 49 had no
+            category. Selecting the named Uncategorized category returned zero rows because that category ID is distinct
+            from a missing category. The screen then said No transactions yet and suggested uploading a file, despite
+            having an existing ledger. Use an explicit unresolved filter and distinguish filtered-empty results from an
+            empty ledger. Post-pagination filtering is a separate backend issue.
+          </li>
+          <li>
+            At 1280 px wide, the transaction table pushed amount and report controls beyond the visible area. The
+            category dropdown was 343 px wide. Reduce column widths, truncate descriptions with a details view, and keep
+            amount and review actions visible. Test the narrower desktop and mobile layouts before shipping the review
+            queue.
+          </li>
+          <li>
+            Counterparty search for Smart worked and returned seven entries. US Growth and NZ Mid Cap payments each
+            appeared under multiple names. Support alias review and merging with transaction evidence, and retain the
+            original descriptions.
+          </li>
+          <li>
+            Dashboard loading briefly displayed empty-account and empty-chart messages before data arrived. Use loading
+            states rather than instructions to add data during a pending query.
+          </li>
+        </ul>
+        <p>
+          These were read-only checks. No classifications, exclusions, imports or rollbacks were applied to the deployed
+          dataset. Export-file contents and apply semantics were inspected in code; they were not tested by changing
+          live records. The separate rollback reproduction used a synthetic local Convex test.
+        </p>
+        <p>
+          Useful foundations already exist: integer bank amounts, original source records, staged imports, duplicate
+          detection, batched commits and rollback, ownership checks, and Convex tests. Preserve those behaviours through
+          the redesign.
+        </p>
+        <h2 id="the-transaction-review-workflow">The transaction review workflow</h2>
+        <p>
+          The main workflow is production export, Codex review, file validation and bulk apply. The UI can show results,
+          but it must not be required to classify each row.
+        </p>
+        <ol>
+          <li>
+            Import bank files and preserve their raw records. Reuse confirmed merchant aliases and rules, while
+            retaining the source of each classification.
+          </li>
+          <li>
+            Run an authenticated export against an explicitly selected deployment. Export the complete ledger as a
+            versioned review bundle, with a manifest, category catalogue, merchant groups and numbered transaction
+            chunks. Include representative evidence in the merchant groups as well as every transaction in the chunks.
+          </li>
+          <li>
+            Codex reads the bundle and writes a proposals file containing only decisions. Each proposal can set a
+            merchant default, classify explicit transaction IDs, propose an alias merge, propose a split or reporting
+            treatment, or leave an item unresolved with one specific question.
+          </li>
+          <li>
+            Validate the proposals locally, then run a server-side dry run against the same deployment. Write a preview
+            report to a file containing affected counts, before/after values, explanations, conflicts and unresolved
+            questions. Review that file in Codex. No financial records change during this step.
+          </li>
+          <li>
+            Apply the reviewed proposal file through an authenticated, idempotent batch job. Save an apply receipt with
+            job ID, accepted/rejected counts and an undo reference. Undo is also callable from the file workflow and
+            checks for edits made after apply.
+          </li>
+        </ol>
+        <p>
+          Use a small Node CLI around the same owner-scoped Convex functions that an optional upload/download screen
+          would call. Commands should select the deployment explicitly and derive the owner from authentication, rather
+          than trusting an owner ID in the file. Keep authentication outside the exported bundle. A production bundle
+          must be rejected by another deployment even if IDs happen to match. Read-only commands may run immediately; an
+          apply command must reference the exact file hash and dry-run result reviewed by the user. This review does not
+          introduce a production write or reset.
+        </p>
+        <p>
+          The proposed file layout is <code>manifest.json</code>, <code>categories.json</code>,
+          <code>merchants.ndjson</code> and <code>transactions-0001.ndjson</code> onward. Codex returns
+          <code>proposals.ndjson</code> and <code>questions.md</code>. The CLI writes <code>preview.json</code> and
+          <code>apply-receipt.json</code>. These are planned contracts, not commands already implemented. The manifest
+          records contract version, deployment identity, owner/export identity, counts and chunk hashes. Every
+          transaction keeps its revision so applying an old file cannot overwrite a later manual correction.
+        </p>
+        <p>
+          The input must include stable IDs, a bundle ID, record revisions, category definitions and examples, signed
+          amounts serialized as decimal strings, currencies, dates, account labels, raw descriptions and existing
+          classification provenance. Merchant examples help triage, but they must not replace the full transaction
+          export. Mask account identifiers and omit authentication credentials.
+        </p>
+        <p>
+          Include category definitions and examples in the file contract. Accept catalogue changes as explicit
+          proposals; an optional app editor can use the same contract. Give unresolved classification one explicit state
+          instead of relying on both a missing category and a seeded Uncategorized category. Show loading, query errors
+          and a completed empty result separately; an empty filtered page should not say that no transactions have ever
+          been imported.
+        </p>
+        <p>
+          The response must refer to IDs from that bundle and include a rationale and confidence level. Confidence is a
+          review aid, not proof that a category is correct. Omitted items remain unchanged. An unresolved proposal is
+          distinct from an intentional request to clear a category. Do not require Codex to repeat or reorder the entire
+          input document.
+        </p>
+        <p>
+          Each proposal must state its scope explicitly: one transaction, listed transactions, unclassified matches, or
+          future matching transactions. A transaction override must never change a merchant default. A merchant default
+          must never overwrite a manual override. Broader reclassification should preview exactly what it will replace.
+        </p>
+        <p>
+          Separate category from reporting treatment. Transfers, investment contributions, refunds, income and expenses
+          need different reporting behaviour. Permit splits that sum exactly to the transaction amount. A supermarket
+          default is useful; an Amazon default needs transaction exceptions. Transfers and refunds should be reviewable
+          suggestions until confirmed by the user or a sufficiently specific confirmed rule.
+        </p>
+        <p>
+          Store proposals separately from accepted decisions. Keep batch progress on the server so applying a large file
+          survives navigation and interrupted requests. Check revisions again when applying; do not overwrite edits made
+          after export. Reject unknown IDs, cross-owner references, duplicate decisions and invalid split totals. Make
+          retrying a batch idempotent. Undo restores the recorded previous values and reports conflicts with subsequent
+          edits.
+        </p>
+        <p>
+          Add a project classification skill after this file contract is implemented. It should tell Codex how to read
+          the bundle, use the category catalogue, produce validated proposals and list unresolved questions. A small
+          local validator should check the response before server-side dry run and apply. Test the file round trip on an
+          isolated deployment first, then export from production. Production classification uses the current ledger,
+          with no reset or reimport required.
+        </p>
+        <h2 id="a-portfolio-model-that-supports-real-holdings">A portfolio model that supports real holdings</h2>
+        <p>
+          Keep personal ownership separate from public fund composition. Owning units of Smart TWF does not mean the
+          user directly owns units of Vanguard VT. VT is a child in TWF&#x27;s breakdown.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Data</th>
+                <th scope="col">Purpose</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Data">Instruments and identifiers</td>
+                <td data-label="Purpose">
+                  Stable identity for Smart ETFs, Vanguard/iShares child funds, Simplicity funds, companies and other
+                  assets. Store exchange plus ticker, ISIN or provider ID where available. Screenshot FundNZ codes are
+                  aliases until mapped to official identifiers.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Data">Investment accounts</td>
+                <td data-label="Purpose">
+                  Separate Smart, KiwiSaver and Australian super, with currency and retirement restrictions.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Data">Investment activity</td>
+                <td data-label="Purpose">
+                  Typed buys, sells, contributions, withdrawals, dividends, reinvestments, tax, fees, fund switches and
+                  corporate actions, linked to account and instrument. Preserve provider descriptions.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Data">Position snapshots</td>
+                <td data-label="Purpose">
+                  Statement holdings or explicit opening balances on a given date. Needed when imported history is
+                  incomplete.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Data">Prices and exchange rates</td>
+                <td data-label="Purpose">
+                  Dated market prices, fund unit prices, manual valuations and currency conversion, each with source and
+                  timestamp.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Data">Fund snapshots and constituent rows</td>
+                <td data-label="Purpose">
+                  A dated fund composition, with child instruments, weights, metadata and the original source document.
+                  Keep constituent rows in a separate table.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Data">Import and refresh jobs</td>
+                <td data-label="Purpose">
+                  Durable status, progress, validation issues and retry state for private imports and public provider
+                  refreshes.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Calculate positions from a statement snapshot plus subsequent activity, or a complete activity history.
+          Reconcile against provider running balances. Do not sum the latest 500 transactions or assume an incomplete
+          history starts at zero. A Simplicity export without a fund column must ask which fund and account it belongs
+          to. A file spanning a fund switch requires a switch date or separate mappings.
+        </p>
+        <p>
+          Use exact decimal arithmetic for units, prices and weights. Retain integer minor units for money and round at
+          documented valuation boundaries. Model activity and job states as discriminated unions and derive TypeScript
+          types from the Convex validators. Validate external files once at the boundary.
+        </p>
+        <p>
+          The first portfolio screen should show each holding&#x27;s units or statement balance, value, valuation date,
+          source and account. Use NZD as the initial reporting currency, while displaying Hostplus&#x27;s original AUD
+          balance and the conversion date. Missing prices or balances remain unknown. A partial total must say which
+          holdings are excluded. Show cash, investments, retirement assets and liabilities separately before combining
+          net worth.
+        </p>
+        <p>
+          Link bank investment payments to investment contributions when possible, so they are not counted twice.
+          Employee KiwiSaver deductions must not be deducted from imported net salary again. Employer contributions
+          belong in the investment activity view without becoming ordinary bank income.
+        </p>
+        <h2 id="getting-the-underlying-investments">Getting the underlying investments</h2>
+        <p>
+          Provider research supports the following starting routes. The exact current files and automated download
+          methods still need a short implementation spike; this review did not establish stable public APIs for every
+          provider.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Holding</th>
+                <th scope="col">Starting route</th>
+                <th scope="col">First data source</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Holding">Smart USG</td>
+                <td data-label="Starting route">
+                  Smart wrapper into Vanguard Growth ETF, VUG. Confirm the latest disclosure before enabling the
+                  mapping.
+                </td>
+                <td data-label="First data source">
+                  Smart disclosure and Vanguard US full holdings. Smart&#x27;s
+                  <a href="https://www.nzx.com/announcements/442385">USG distribution announcement</a> identifies the
+                  underlying fund.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Holding">Smart EUF</td>
+                <td data-label="Starting route">Smart wrapper into Vanguard FTSE Europe ETF, VGK.</td>
+                <td data-label="First data source">
+                  Smart disclosure and Vanguard US full holdings. Smart&#x27;s
+                  <a
+                    href="https://www.smartinvest.co.nz/news-and-insights/beyond-america-broadening-your-global-portfolio-with-smarts-regional-funds"
+                    >regional fund article</a
+                  >
+                  identifies the Europe and Total World child funds.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Holding">Smart TWF</td>
+                <td data-label="Starting route">Smart wrapper into Vanguard Total World Stock ETF, VT.</td>
+                <td data-label="First data source">
+                  Smart disclosure plus Vanguard VT full holdings. Preserve Smart cash and other residual positions.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Holding">Smart UST</td>
+                <td data-label="Starting route">
+                  Smart wrapper into iShares S&amp;P 500 Information Technology Sector UCITS ETF, with NZD hedging.
+                </td>
+                <td data-label="First data source">
+                  Smart disclosure and iShares/BlackRock holdings for the exact share class. Smart&#x27;s
+                  <a
+                    href="https://assets.ctfassets.net/m5mydry9e35f/615ZVvfyAJYBA6IRPKquc6/ce5572f65c25317c93b4e422a01a182d/Smart_launches_four_new_ETFs_and_announces_a_new_strategic_alliance_with_iShares.pdf"
+                    >launch announcement</a
+                  >
+                  identifies the underlying fund.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Holding">Smart MDZ</td>
+                <td data-label="Starting route">NZ share exposure from the actual Smart holdings.</td>
+                <td data-label="First data source">
+                  Smart&#x27;s full portfolio disclosure. No Vanguard mapping should be inferred.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Holding">Simplicity KiwiSaver High Growth</td>
+                <td data-label="Starting route">
+                  Actual Simplicity holdings and underlying wholesale funds where disclosed.
+                </td>
+                <td data-label="First data source">
+                  Simplicity&#x27;s fund documents and fund-specific investment calculator, with Disclose files as a
+                  fallback.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Holding">Simplicity KiwiSaver Growth</td>
+                <td data-label="Starting route">A separate fund and historical position if confirmed.</td>
+                <td data-label="First data source">
+                  Its own dated holdings and unit prices. Never substitute High Growth composition.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Holding">Hostplus Indexed High Growth</td>
+                <td data-label="Starting route">Hostplus&#x27;s specific investment option.</td>
+                <td data-label="First data source">
+                  Manual AUD statement balance first, then its
+                  <a
+                    href="https://hostplus.com.au/members/our-products-and-services/investment-options/investment-holdings-by-investment-option"
+                    >investment holdings downloads</a
+                  >.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Use Vanguard&#x27;s US fund sources for the US-listed child ETFs, rather than assuming Vanguard Australia
+          products have identical holdings. Its fund pages expose full-holdings export controls, but download automation
+          must be verified for VUG, VGK and VT individually.
+        </p>
+        <p>
+          Simplicity&#x27;s
+          <a href="https://simplicity.kiwi/kiwisaver/funds/kiwisaver-high-growth-fund">High Growth KiwiSaver page</a>
+          links all investments, unit price history and fund updates. It says international portfolio management moved
+          from Vanguard to DWS on 28 April 2023. Use Simplicity&#x27;s actual portfolio rather than approximating it
+          with a Vanguard index. Keep target allocation separate from observed holdings.
+        </p>
+        <p>
+          Simplicity&#x27;s
+          <a href="https://simplicity.kiwi/calculators/investment-funds/where-in-the-world-is-my-money"
+            >investment fund calculator</a
+          >
+          labels its data date and excludes cash equivalents and currency hedges. Check the KiwiSaver calculator&#x27;s
+          coverage separately. A calculator breakdown cannot automatically be treated as a complete portfolio. The
+          <a
+            href="https://disclose-register.companiesoffice.govt.nz/help-centre/managed-fund-offers/filing-full-portfolio-holdings/"
+            >Disclose guidance</a
+          >
+          describes six-monthly full-holdings filings, so those files are historical snapshots rather than live
+          positions.
+        </p>
+        <p>
+          Start with official downloadable CSV/XLSX sources, then public structured data, then deterministic PDF
+          extraction if necessary. Include manual source-file upload immediately so a provider website change does not
+          disable the feature. Do not require provider login credentials for public fund composition. Personal units
+          still come from statements or imports.
+        </p>
+        <p>
+          For each provider, implement a small adapter that discovers, downloads, parses and validates a snapshot. Store
+          its source URL, raw file, hash, parser version, publication/holdings dates and coverage. Stage all constituent
+          rows and publish a pointer only when validation completes. A failed refresh keeps the last successful snapshot
+          and displays the failure. Use bounded Convex actions for network work and internal mutations for writes.
+          Scheduled refreshes should retry idempotently and avoid simultaneous publication for the same fund.
+        </p>
+        <p>
+          Poll according to each source&#x27;s actual publication cadence. Prices may update on business days;
+          composition may update monthly, quarterly or less often. Display those dates separately. Historical views must
+          select composition and prices known at the requested date. Never apply today&#x27;s holdings to a historical
+          chart without an explicit estimate label.
+        </p>
+        <h2 id="calculating-exposure-and-overlap">Calculating exposure and overlap</h2>
+        <p>
+          For each holding, multiply its portfolio value by every fund weight along the path to the underlying asset.
+          Sum all paths to a company across Smart funds, KiwiSaver and other holdings.
+        </p>
+        <p>
+          For example, a hypothetical NZ$10,000 TWF position with a 99% VT allocation and a 4% Apple weight in VT gives
+          NZ$396 of Apple exposure. Both percentages are illustrative. Actual calculations use the stored dated
+          disclosures.
+        </p>
+        <p>
+          Use security identifiers to match holdings and a separate issuer identity to combine share classes when
+          showing company totals. Keep security detail available. Add country, sector and asset class only when the
+          source supports them. A US-listed fund is not automatically US company exposure, and an Irish-domiciled ETF is
+          not Irish economic exposure. Keep currency denomination and currency hedging separate.
+        </p>
+        <p>
+          Stop at an unresolved child fund and report its value as unresolved. Detect cycles. Preserve cash,
+          derivatives, liabilities and disclosed signed weights; holdings can exceed 100% of net assets with offsetting
+          positions. Do not normalize incomplete holdings to 100% or silently remove those offsets. Sector
+          classifications from different providers need an explicit mapping, with unknown classifications retained.
+        </p>
+        <p>The portfolio should answer:</p>
+        <ul>
+          <li>How much is held in each fund and account?</li>
+          <li>Which companies account for the largest combined exposure?</li>
+          <li>How much is in each country, sector and asset class?</li>
+          <li>Which funds contribute to a company&#x27;s exposure?</li>
+          <li>How much of the portfolio has a resolved breakdown, and how old are its sources?</li>
+          <li>What is accessible now, and what is in KiwiSaver or super?</li>
+        </ul>
+        <p>
+          Start with a holdings table, allocation bars and a searchable company table. Clicking a company should show
+          every contributing fund and its calculation. Add a map only if it helps answer a question the table cannot.
+        </p>
+        <h2 id="implementation-order-and-completion-checks">Implementation order and completion checks</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Slice</th>
+                <th scope="col">Work</th>
+                <th scope="col">Done when</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Slice">1</td>
+                <td data-label="Work">
+                  Correct transaction/default scope, rollback batching, classification provenance, transfer review,
+                  unresolved filters and report labels. Investigate duplicate account identity. Fix baseline lint,
+                  validate monetary parsing, and replace silent read caps.
+                </td>
+                <td data-label="Done when">
+                  One-off edits preserve future defaults; defaults can explicitly update history; rollback clears every
+                  batch; transfers require review; unresolved rows are filterable; balances are counted once and show
+                  currency, dates and coverage.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Slice">2</td>
+                <td data-label="Work">
+                  Implement the production review bundle, authenticated export/validate/dry-run/apply/undo CLI, durable
+                  jobs and classification skill. Add a review queue as a convenience.
+                </td>
+                <td data-label="Done when">
+                  A production ledger can be exported in chunks, classified in Codex, reviewed as files and applied
+                  without individual UI edits or lost manual decisions. Retries and an interrupted batch do not
+                  duplicate changes. Every unresolved transaction remains visible.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Slice">3</td>
+                <td data-label="Work">
+                  Add instrument identity, statement/opening positions, fund-switch mapping, exact calculations, manual
+                  prices and AUD/NZD valuation.
+                </td>
+                <td data-label="Done when">
+                  Smart and KiwiSaver positions reconcile to statements. Hostplus can be recorded. Partial history and
+                  unknown values are shown clearly. Net worth includes the portfolio once.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Slice">4</td>
+                <td data-label="Work">
+                  Prove one complete source snapshot for each provider path, then import all current owned funds. Build
+                  adapters, raw-source retention and manual upload.
+                </td>
+                <td data-label="Done when">
+                  TWF to VT, USG to VUG, EUF to VGK, UST to iShares, MDZ and Simplicity have verified identities and
+                  dated snapshots. Unknown constituents and cash/hedge exclusions are accounted for.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Slice">5</td>
+                <td data-label="Work">
+                  Add recursive exposure, company aggregation, source drilldown and concentration/overlap views.
+                </td>
+                <td data-label="Done when">
+                  Hand-calculated fixtures reconcile; shared companies sum correctly; nested funds, incomplete data,
+                  signed weights and different source dates display correctly.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Slice">6</td>
+                <td data-label="Work">
+                  Add scheduled refreshes, historical snapshots, Hostplus composition and investment performance.
+                </td>
+                <td data-label="Done when">
+                  A failed refresh preserves published data. Provider layout changes are tested. Performance separates
+                  contributions from gains and states whether it is before or after tax/fees.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Build each slice as a focused change and run the relevant checks. Tests should cover the financial rules and
+          import/review contracts, using Convex&#x27;s actual test helpers and sanitized provider fixtures. Verify one
+          real provider download for every enabled adapter and compare imported positions to statements. Fixtures alone
+          do not prove live downloads or signed-in workflows.
+        </p>
+        <p>
+          Retain ownership checks and authentication. Use fresh imports for the redesigned schema; no legacy adapters or
+          historical-data migration is required. Do not reset the current deployment as part of this planning task.
+          Document the later reset/reimport procedure before running it.
+        </p>
+        <p>
+          Defer in-app AI, live trading, bank credential aggregation, tax filing, advanced return attribution and a
+          broad cosmetic redesign. They do not unlock the selected workflow.
+        </p>
+        <h2 id="review-verification-and-remaining-limits">Review verification and remaining limits</h2>
+        <ul>
+          <li>
+            <code>pnpm test</code> passed 12 tests, with 2 skipped across 4 test files. The optional local-export tests
+            did not run in this invocation.
+          </li>
+          <li>
+            <code>pnpm lint</code> reached Oxlint after TypeScript and failed with 30 errors and 10 warnings, mainly in
+            UI components. These are baseline findings.
+          </li>
+          <li><code>pnpm build</code> and <code>pnpm exec tsc -p convex/tsconfig.json</code> passed.</li>
+          <li>
+            Finance now uses <code>http://localhost:3010</code>, with
+            <code>http://localhost:3010/callback</code> registered by the user in WorkOS. The Vite config, Convex
+            development AuthKit config and setup instructions agree on that port. <code>strictPort</code> prevents an
+            automatic port change from breaking the callback. The shared Power BI gateway is running on port 3000 with
+            its two worktrees still registered.
+          </li>
+          <li>
+            Signed-in T3 Code browser checks covered dashboard reporting, transaction pagination and category filtering,
+            desktop table layout and counterparty search. The T3 preview host disconnected before the remaining
+            Investments, Accounts, Imports and mobile checks. Those checks remain pending; no deployed financial records
+            were changed.
+          </li>
+          <li>
+            Public provider research established source routes and several fund identities. Automatic download
+            contracts, complete per-fund coverage and actual portfolio exposure are still unverified.
+          </li>
+          <li>
+            Copied the TypeScript best practices and unslop skills from the Power BI app, including the two TypeScript
+            principle dependencies and its examples. Linked them in <code>AGENTS.md</code>.
+          </li>
+        </ul>
+        <p>
+          The first implementation deliverable should be slices 1 and 2. They directly solve the classification problem
+          and produce a review bundle Codex can process before the portfolio work expands.
+        </p>
+        <p>
+          Include the rollback fix in slice 1. Its regression check must import more than one batch, roll back every
+          active source and transaction, and verify that the completion status agrees with the data. Cover both ledgers,
+          including transactions shared by more than one import.
+        </p>
+      </main>
+    </div>
+    <footer>
+      Standalone review document. The proposed classification and portfolio features have not been implemented.
+    </footer>
+  </body>
+</html>

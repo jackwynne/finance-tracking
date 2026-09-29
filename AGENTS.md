@@ -16,4 +16,4 @@ Convex agent skills for common tasks can be installed by running
 
 - Apply [TypeScript best practices](.agents/skills/typescript-best-practices/SKILL.md) when reading or editing TypeScript. Its supporting [type system discipline](.agents/skills/principle-type-system-discipline/SKILL.md) and [boundary discipline](.agents/skills/principle-boundary-discipline/SKILL.md) skills are included locally.
 - Apply [unslop](.agents/skills/unslop/SKILL.md) to app copy, documentation, and responses.
-- The transaction and portfolio review and implementation plan is in [docs/improvement-plan.md](docs/improvement-plan.md).
+- The transaction and portfolio review and implementation plan is in [docs/improvement-plan.html](docs/improvement-plan.html).
