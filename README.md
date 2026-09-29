@@ -72,6 +72,8 @@ Set up your environment variables:
 
 5. Open [http://localhost:3010](http://localhost:3010) to see your app
 
+The frontend uses port 3010 so the shared Power BI gateway can keep port 3000. Vite fails if 3010 is occupied instead of silently choosing a port that does not match the WorkOS callback.
+
 ## WorkOS AuthKit Setup
 
 This app uses WorkOS AuthKit for authentication. Key features:
