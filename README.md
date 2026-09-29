@@ -14,9 +14,9 @@ After the initial setup (<2 minutes) you'll have a working full-stack app using:
 
 Clone this repository and install dependencies:
 
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
 ### Automatic setup
 
@@ -38,7 +38,7 @@ Set up your environment variables:
 
 2. Configure WorkOS AuthKit:
    - Get your Client ID and API Key from the WorkOS dashboard
-   - In the WorkOS dashboard, add `http://localhost:3000/callback` as a redirect URI
+   - In the WorkOS dashboard, add `http://localhost:3010/callback` as a redirect URI
    - Generate a secure password for cookie encryption (minimum 32 characters)
      - If you have `openssl` installed, you can use `openssl rand -base64 24`
    - Update your `.env.local` file with these values
@@ -70,7 +70,7 @@ Set up your environment variables:
 
    This starts both the Vite dev server (TanStack Start frontend) and Convex backend in parallel
 
-5. Open [http://localhost:3000](http://localhost:3000) to see your app
+5. Open [http://localhost:3010](http://localhost:3010) to see your app
 
 ## WorkOS AuthKit Setup
 
