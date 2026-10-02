@@ -3,6 +3,8 @@ import { decimal, decimalText, multiply, SCALE } from './portfolioMath';
 type Activity = {
   effectiveDate: string;
   transactionType: string;
+  description?: string;
+  unitsMissing?: boolean;
   units: string;
   unitPrice?: string;
   amountMinor?: bigint;
@@ -30,6 +32,12 @@ export function contributionHistory(activities: ReadonlyArray<Activity>, zeroOpe
   if (!complete)
     issues.add('Confirm the account started at zero, or import its opening value, before calculating growth.');
   for (const row of activities) {
+    if (row.unitsMissing || row.description?.endsWith(' · Units not supplied')) {
+      complete = false;
+      issues.add(
+        'Some transactions do not supply units. A cash-only contribution cannot establish holding value or growth.',
+      );
+    }
     const amount = row.amountMinor === undefined ? null : (row.amountMinor * SCALE) / 100n;
     const type = row.transactionType
       .toLowerCase()
@@ -44,10 +52,10 @@ export function contributionHistory(activities: ReadonlyArray<Activity>, zeroOpe
       )
     ) {
       if (amount === null) complete = false;
-      else personal += amount < 0n ? -amount : amount;
+      else personal += /^(regular savings plan|purchase|buy)$/.test(type) ? (amount < 0n ? -amount : amount) : amount;
     } else if (/^(employer contributions|employer contribution|government contributions)$/.test(type)) {
       if (amount === null) complete = false;
-      else other += amount < 0n ? -amount : amount;
+      else other += amount;
     } else if (/^(withdrawal|withdrawals|sell|sale)$/.test(type)) {
       if (amount === null) complete = false;
       else withdrawals += amount < 0n ? -amount : amount;

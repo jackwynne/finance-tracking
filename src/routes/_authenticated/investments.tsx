@@ -166,10 +166,10 @@ function Investments({
                       </TableCell>
                       <TableCell className="text-right font-heading">{transaction.units}</TableCell>
                       <TableCell className="text-right font-heading">
-                        {transaction.unitPrice ? `$${transaction.unitPrice}` : '—'}
+                        {transaction.unitPrice ? `${transaction.currency} ${transaction.unitPrice}` : '—'}
                       </TableCell>
                       <TableCell className="pr-4 text-right font-heading font-semibold">
-                        {formatMoney(transaction.amountMinor)}
+                        {formatMoney(transaction.amountMinor, transaction.currency)} {transaction.currency}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -333,6 +333,7 @@ function Investments({
                             <TableHead>Activity</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">Units</TableHead>
+                            <TableHead className="text-right">Price</TableHead>
                             <TableHead className="text-right">Value</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -348,8 +349,11 @@ function Investments({
                                 <StatusBadge status={row.status} />
                               </TableCell>
                               <TableCell className="text-right font-heading">{row.units}</TableCell>
+                              <TableCell className="text-right font-heading">
+                                {row.unitPrice ? `${row.currency} ${row.unitPrice}` : '—'}
+                              </TableCell>
                               <TableCell className="text-right font-heading font-medium">
-                                {formatMoney(row.amountMinor)}
+                                {formatMoney(row.amountMinor, row.currency)} {row.currency}
                               </TableCell>
                             </TableRow>
                           ))}

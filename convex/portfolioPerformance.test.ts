@@ -123,3 +123,54 @@ test('performance requires ownership and values imported units at their observed
   );
   await expect(t.query(api.portfolioPerformance.options, {})).rejects.toThrow('signed in');
 });
+
+test('cash-only transactions do not fabricate a complete loss from zero placeholder units', async () => {
+  const t = convexTest(schema, modules);
+  const owner = t.withIdentity({ tokenIdentifier: 'test|cash-only', subject: 'cash-only', issuer: 'test' });
+  await owner.mutation(api.profiles.ensureCurrent, {});
+  const profile = await owner.query(api.profiles.current, {});
+  if (!profile) throw new Error('Missing profile');
+  const accountId = await t.run(async (ctx) => {
+    const account = await ctx.db.insert('investmentAccounts', {
+      ownerId: profile._id,
+      name: 'Hostplus',
+      provider: 'Hostplus',
+      currency: 'AUD',
+      sourceKeyHash: 'cash-only',
+      archived: false,
+      performanceZeroOpening: true,
+    });
+    const importId = await ctx.db.insert('investmentImports', {
+      ownerId: profile._id,
+      storageId: await ctx.storage.store(new Blob(['cash-only'])),
+      fileName: 'history.csv',
+      size: 9,
+      sha256: 'cash-only',
+      status: 'committed',
+      totalRows: 1,
+      readyRows: 0,
+      duplicateRows: 0,
+      invalidRows: 0,
+      committedRows: 1,
+      startedAt: 1,
+    });
+    await ctx.db.insert('investmentTransactions', {
+      ownerId: profile._id,
+      accountId: account,
+      effectiveDate: '2026-08-17',
+      transactionType: 'Personal contribution',
+      description: 'Personal contribution · Units not supplied',
+      units: '0',
+      unitPrice: '1',
+      amountMinor: 10000n,
+      currency: 'AUD',
+      createdByImportId: importId,
+      voided: false,
+    });
+    return account;
+  });
+  const history = await owner.query(api.portfolioPerformance.history, { accountId, asOf: '2026-08-17' });
+  expect(history).toMatchObject({ complete: false, totalsAvailable: false, personal: '100' });
+  expect(history.observations[0]?.value).toBeNull();
+  expect(history.issues.join(' ')).toContain('do not supply units');
+});

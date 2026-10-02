@@ -69,6 +69,41 @@ describe('contributed capital and growth', () => {
     expect(result).toMatchObject({ complete: true, personal: '0', other: '100', withdrawals: '0' });
     expect(result.observations.at(-1)).toMatchObject({ capital: '100', value: '82' });
   });
+  it('subtracts signed employee and employer contribution reversals', () => {
+    const result = contributionHistory([
+      { effectiveDate: '2025-01-01', transactionType: 'Switch', units: '100', unitPrice: '1', amountMinor: 10000n },
+      {
+        effectiveDate: '2025-02-01',
+        transactionType: 'Employee Contributions',
+        units: '559',
+        unitPrice: '1',
+        amountMinor: 55900n,
+      },
+      {
+        effectiveDate: '2025-02-01',
+        transactionType: 'Employer Contributions',
+        units: '374.53',
+        unitPrice: '1',
+        amountMinor: 37453n,
+      },
+      {
+        effectiveDate: '2025-02-02',
+        transactionType: 'Employee Contributions',
+        units: '-278.2013',
+        unitPrice: '1.4955',
+        amountMinor: -41605n,
+      },
+      {
+        effectiveDate: '2025-02-02',
+        transactionType: 'Employer Contributions',
+        units: '-186.5797',
+        unitPrice: '1.4955',
+        amountMinor: -27903n,
+      },
+    ]);
+    expect(result).toMatchObject({ personal: '142.95', other: '95.5', complete: true });
+    expect(result.observations.at(-1)?.capital).toBe('338.45');
+  });
   it('does not invent cost basis or a zero opening', () => {
     expect(
       contributionHistory([{ effectiveDate: '2025-01-01', transactionType: 'Regular Savings Plan', units: '10' }])
