@@ -253,7 +253,6 @@ function Imports({
                                   createAccount: {
                                     name: selected.detectedAccountName ?? 'Imported account',
                                     type: selected.detectedAccountType ?? 'other',
-                                    institution: 'ANZ',
                                   },
                                 },
                           )

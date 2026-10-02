@@ -83,6 +83,7 @@ export default defineSchema({
     sourceKeyHash: v.optional(v.string()),
     archived: v.boolean(),
     currentLedgerMinor: v.optional(v.int64()),
+    mergedInto: v.optional(v.id('accounts')),
     currentAvailableMinor: v.optional(v.int64()),
     balanceAsOf: v.optional(v.string()),
     providerAccountId: v.optional(v.string()),
@@ -137,6 +138,7 @@ export default defineSchema({
     rolledBackAt: v.optional(v.number()),
   })
     .index('by_ownerId_and_startedAt', ['ownerId', 'startedAt'])
+    .index('by_accountId', ['accountId'])
     .index('by_ownerId_and_sha256', ['ownerId', 'sha256']),
 
   importRows: defineTable({

@@ -74,7 +74,8 @@ export const updateAccount = mutation({
   },
   handler: async (ctx, args) => {
     const profile = await requireProfile(ctx);
-    assertOwner(await ctx.db.get('accounts', args.accountId), profile._id);
+    const account = assertOwner(await ctx.db.get('accounts', args.accountId), profile._id);
+    if (account.mergedInto) throw new ConvexError('This account was merged. Edit the remaining account.');
     const patch: Partial<Doc<'accounts'>> = {};
     if (args.name !== undefined) patch.name = args.name.trim();
     if (args.type !== undefined) patch.type = args.type;

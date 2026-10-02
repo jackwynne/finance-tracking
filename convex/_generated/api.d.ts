@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as accountMerge from "../accountMerge.js";
 import type * as akahu from "../akahu.js";
 import type * as akahuActions from "../akahuActions.js";
 import type * as akahuClient from "../akahuClient.js";
@@ -47,6 +48,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  accountMerge: typeof accountMerge;
   akahu: typeof akahu;
   akahuActions: typeof akahuActions;
   akahuClient: typeof akahuClient;

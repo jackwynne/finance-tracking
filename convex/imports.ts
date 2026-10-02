@@ -110,6 +110,7 @@ export const confirmAccount = mutation({
     let accountId = args.accountId;
     if (accountId) {
       const account = assertOwner(await ctx.db.get('accounts', accountId), profile._id);
+      if (account.archived) throw new ConvexError('Choose an active account.');
       if (importJob.currency && account.currency !== importJob.currency)
         throw new ConvexError('The statement currency does not match the selected account.');
       if (
@@ -128,7 +129,9 @@ export const confirmAccount = mutation({
               q.eq('ownerId', profile._id).eq('sourceKeyHash', importJob.detectedSourceKeyHash),
             )
             // eslint-disable-next-line @convex-dev/no-filter-in-query -- Currency is part of the source identity and must be checked before limiting matches.
-            .filter((q) => q.eq(q.field('currency'), importJob.currency ?? 'NZD'))
+            .filter((q) =>
+              q.and(q.eq(q.field('currency'), importJob.currency ?? 'NZD'), q.eq(q.field('archived'), false)),
+            )
             .take(2)
         : [];
       if (existing.length > 1)
