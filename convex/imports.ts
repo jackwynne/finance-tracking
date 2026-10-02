@@ -429,11 +429,13 @@ export const commitBatch = internalMutation({
         importId: importJob._id,
         voided: false,
       });
-      await ctx.db.patch('accounts', importJob.accountId, {
-        currentLedgerMinor: ledgerMinor,
-        currentAvailableMinor: importJob.availableMinor,
-        balanceAsOf: importJob.balanceDate,
-      });
+      if (!account?.balanceAsOf || importJob.balanceDate >= account.balanceAsOf) {
+        await ctx.db.patch('accounts', importJob.accountId, {
+          currentLedgerMinor: ledgerMinor,
+          currentAvailableMinor: importJob.availableMinor,
+          balanceAsOf: importJob.balanceDate,
+        });
+      }
     }
     await ctx.db.patch('imports', importJob._id, { status: 'committed', completedAt: Date.now() });
     await ctx.scheduler.runAfter(0, internal.imports.suggestLinks, { importId: importJob._id });
