@@ -406,3 +406,71 @@ test('duplicate bank source identities warn without deleting records or silently
   expect(summary.unknown).toBe(1);
   expect(summary.rows.find((row) => row.name === 'Missing balance')?.value).toBeNull();
 });
+
+test('fund switches close the old fund and open a distinct identity atomically with historical units and undo', async () => {
+  const t = convexTest(schema, modules);
+  const owner = t.withIdentity({ tokenIdentifier: 'test|switch', subject: 'switch', issuer: 'test' });
+  await owner.mutation(api.profiles.ensureCurrent, {});
+  const oldId = await owner.mutation(api.portfolio.savePosition, position);
+  await expect(owner.mutation(api.portfolio.savePosition, { ...position, instrument: 'FundNZ:25641' })).rejects.toThrow(
+    'distinct position key',
+  );
+  await expect(
+    owner.mutation(api.portfolio.savePosition, { ...position, account: 'Different account' }),
+  ).rejects.toThrow('distinct position key');
+  const context = await owner.query(api.updates.getContext, {});
+  const oldRevision = context.portfolio.positionRevisions.find((p) => p.key === position.key)?.revision;
+  if (!oldRevision) throw new Error('Missing old fund revision');
+  const newFund = {
+    ...position,
+    key: 'new-high-growth',
+    name: 'High Growth',
+    instrument: 'FundNZ:25641',
+    snapshotDate: '2026-09-30',
+    units: '80',
+    value: '100',
+    source: 'Fund switch statement',
+    evidence: 'Switch 100 old units into 80 new units',
+  };
+  const jobId = await owner.mutation(api.updates.stage, {
+    version: 1,
+    deployment: context.deployment,
+    ownerId: context.ownerId,
+    clientKey: 'fund-switch',
+    title: 'Switch funds',
+    questions: [],
+    sources: ['Fund switch statement'],
+    groups: [
+      {
+        kind: 'portfolioPosition',
+        expectedRevision: oldRevision,
+        reason: 'Close the old fund without renaming it',
+        value: { ...position, snapshotDate: '2026-09-30', units: '0', value: '0' },
+      },
+      {
+        kind: 'portfolioPosition',
+        expectedRevision: context.emptyPositionRevision,
+        reason: 'Open the new fund as a distinct identity',
+        value: newFund,
+      },
+    ],
+  });
+  const preview = await owner.query(api.updates.preview, { jobId });
+  await owner.mutation(api.updates.apply, { jobId, previewHash: preview.previewHash });
+  const after = await owner.query(api.portfolio.getExposure, { asOf: '2026-09-30', currency: 'NZD' });
+  expect(after.rows.find((row) => row.id === oldId)).toMatchObject({
+    instrument: position.instrument,
+    units: '0',
+    value: '0',
+  });
+  expect(after.rows.find((row) => row.instrument === newFund.instrument)).toMatchObject({ units: '80', value: '100' });
+  expect(
+    (await owner.query(api.portfolio.getExposure, { asOf: '2026-09-01', currency: 'NZD' })).rows.find(
+      (row) => row.id === oldId,
+    ),
+  ).toMatchObject({ instrument: position.instrument, units: '100', value: '100' });
+  await owner.mutation(api.updates.undo, { jobId, previewHash: preview.previewHash });
+  const undone = await owner.query(api.portfolio.getExposure, { asOf: '2026-09-30', currency: 'NZD' });
+  expect(undone.rows).toHaveLength(1);
+  expect(undone.rows[0]).toMatchObject({ id: oldId, instrument: position.instrument, units: '100', value: '100' });
+});

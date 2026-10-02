@@ -6,6 +6,7 @@ import { requireProfile, assertOwner } from './lib/auth';
 import { decimal, decimalText, date, multiply, rateFor, SCALE, uncovered } from './lib/portfolioMath';
 import {
   validatePosition,
+  validatePositionIdentity,
   validateAllocation,
   validateRate,
   validatePrice,
@@ -24,8 +25,7 @@ export const savePosition = mutation({
       .unique();
     const id = existing ? existing._id : await ctx.db.insert('portfolioPositions', { ...args, ownerId: profile._id });
     if (existing) {
-      if (existing.currency !== args.currency || existing.instrument !== args.instrument)
-        throw new ConvexError('Keep currency and instrument stable for an existing position.');
+      validatePositionIdentity(existing, args);
       await ctx.db.patch(id, {
         name: args.name,
         account: args.account,

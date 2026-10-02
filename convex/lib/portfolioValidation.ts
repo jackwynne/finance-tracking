@@ -71,3 +71,17 @@ export function validatePurchase(value: Infer<typeof purchase>) {
   if (decimal(value.units) === 0n || !value.sourceEvent.trim() || !value.source.trim() || !value.evidence.trim())
     throw new ConvexError('Source occurrence and nonzero units are required.');
 }
+
+export function validatePositionIdentity(
+  previous: Pick<Infer<typeof position>, 'account' | 'instrument' | 'currency'>,
+  next: Infer<typeof position>,
+) {
+  if (
+    previous.account !== next.account ||
+    previous.instrument !== next.instrument ||
+    previous.currency !== next.currency
+  )
+    throw new ConvexError(
+      'Existing position account, instrument and currency are stable. Use a distinct position key for a fund switch.',
+    );
+}

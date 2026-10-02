@@ -8,6 +8,7 @@ import { assertOwner } from './auth';
 import { decimal } from './portfolioMath';
 import {
   validatePosition,
+  validatePositionIdentity,
   validateAllocation,
   validateRate,
   validatePrice,
@@ -213,8 +214,7 @@ export async function applyPortfolio(
         .query('portfolioPositions')
         .withIndex('by_ownerId_and_key', (q) => q.eq('ownerId', owner).eq('key', value.key))
         .unique();
-      if (existing && (existing.instrument !== value.instrument || existing.currency !== value.currency))
-        throw new ConvexError('Position instrument and currency are stable.');
+      if (existing) validatePositionIdentity(existing, value);
       const positionId = existing
         ? existing._id
         : await ctx.db.insert('portfolioPositions', { ...value, ownerId: owner });
