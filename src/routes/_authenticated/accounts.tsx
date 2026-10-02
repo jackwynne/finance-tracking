@@ -73,8 +73,12 @@ function Accounts() {
             <AccountCard
               key={account._id}
               account={account}
-              onBalance={(date, ledgerMinor) => addBalance({ accountId: account._id, date, ledgerMinor })}
-              onArchive={() => updateAccount({ accountId: account._id, archived: true })}
+              onBalance={async (date, ledgerMinor) => {
+                await addBalance({ accountId: account._id, date, ledgerMinor });
+              }}
+              onArchive={async () => {
+                await updateAccount({ accountId: account._id, archived: true });
+              }}
             />
           ))
         ) : (
@@ -96,8 +100,8 @@ function AccountCard({
   onArchive,
 }: {
   account: NonNullable<ReturnType<typeof useQuery<typeof api.finance.listAccounts>>>[number];
-  onBalance: (date: string, ledgerMinor: bigint) => Promise<unknown>;
-  onArchive: () => Promise<unknown>;
+  onBalance: (date: string, ledgerMinor: bigint) => Promise<void>;
+  onArchive: () => Promise<void>;
 }) {
   const [balance, setBalance] = useState('');
   const [date, setDate] = useState(aucklandToday());

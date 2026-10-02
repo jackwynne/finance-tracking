@@ -17,11 +17,14 @@ export function maskAccountIdentifier(value: string): string {
 }
 
 export function toMinorUnits(value: string | number): bigint {
-  const numeric = typeof value === 'number' ? value : Number.parseFloat(value);
-  if (!Number.isFinite(numeric)) {
-    throw new Error(`Invalid monetary amount: ${String(value)}`);
-  }
-  return BigInt(Math.round(numeric * 100));
+  const text = String(value).trim();
+  if (!/^[+-]?\d+(?:\.\d+)?$/.test(text)) throw new Error(`Invalid monetary amount: ${text}`);
+  const negative = text.startsWith('-');
+  const [whole, fraction = ''] = text.replace(/^[+-]/, '').split('.');
+  if (/[1-9]/.test(fraction.slice(2))) throw new Error('Bank amounts must have no fractional cents.');
+  const minor = (BigInt(whole) * 100n + BigInt(fraction.slice(0, 2).padEnd(2, '0'))) * (negative ? -1n : 1n);
+  if (minor < -(2n ** 63n) || minor > 2n ** 63n - 1n) throw new Error('Monetary amount exceeds the ledger limit.');
+  return minor;
 }
 
 export function formatMinorUnits(value: bigint): number {

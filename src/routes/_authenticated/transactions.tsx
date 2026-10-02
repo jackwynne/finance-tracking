@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react';
+import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,13 +8,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { EmptyState, formatMoney, NativeSelect, nzDate, PageHeading, showError } from '@/features/finance/finance-ui';
 
 import { api } from '../../../convex/_generated/api';
-import type { Id } from '../../../convex/_generated/dataModel';
 
 export const Route = createFileRoute('/_authenticated/transactions')({
-  validateSearch: (search: Record<string, unknown>) => ({
-    account: typeof search.account === 'string' ? search.account : undefined,
-    category: typeof search.category === 'string' ? search.category : undefined,
-  }),
+  validateSearch: z.object({
+    account: z.string().optional().catch(undefined),
+    category: z.string().optional().catch(undefined),
+  }).parse,
   component: TransactionsRoute,
 });
 
@@ -50,12 +50,15 @@ function Transactions({
   const categories = useQuery(api.finance.listCategories);
   const accounts = useQuery(api.finance.listAccounts, {});
   const update = useMutation(api.finance.updateTransaction);
+  const selectedAccountId = accounts?.find((account) => account._id === accountId)?._id;
+  const selectedCategoryId = categories
+    ?.flatMap((group) => group.categories)
+    .find((category) => category._id === categoryId)?._id;
   const { results, status, loadMore } = usePaginatedQuery(
     api.finance.listTransactions,
-    {
-      accountId: accountId ? (accountId as Id<'accounts'>) : undefined,
-      categoryId: categoryId ? (categoryId as Id<'categories'>) : undefined,
-    },
+    (accountId && !selectedAccountId) || (categoryId && !selectedCategoryId)
+      ? 'skip'
+      : { accountId: selectedAccountId, categoryId: selectedCategoryId },
     { initialNumItems: 50 },
   );
   const flatCategories =
@@ -131,7 +134,8 @@ function Transactions({
                         onChange={(event) =>
                           void update({
                             transactionId: transaction._id,
-                            categoryId: event.target.value ? (event.target.value as Id<'categories'>) : null,
+                            categoryId:
+                              flatCategories.find((category) => category._id === event.target.value)?._id ?? null,
                             scope: 'transaction',
                           }).catch(showError)
                         }

@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { z } from 'zod';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,9 +24,9 @@ import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 
 export const Route = createFileRoute('/_authenticated/investments')({
-  validateSearch: (search: Record<string, unknown>) => ({
-    importId: typeof search.importId === 'string' ? search.importId : undefined,
-  }),
+  validateSearch: z.object({
+    importId: z.string().optional().catch(undefined),
+  }).parse,
   component: InvestmentsRoute,
 });
 
@@ -58,7 +59,7 @@ function Investments({
   const commit = useMutation(api.investmentImports.commit);
   const rollback = useMutation(api.investmentImports.rollback);
   const [uploading, setUploading] = useState(false);
-  const selectedId = selectedImportId ? (selectedImportId as Id<'investmentImports'>) : null;
+  const selectedId = imports?.find((entry) => entry._id === selectedImportId)?._id ?? null;
   const preview = useQuery(api.investmentImports.preview, selectedId ? { importId: selectedId } : 'skip');
   const downloadUrl = useQuery(api.investmentImports.sourceDownloadUrl, selectedId ? { importId: selectedId } : 'skip');
   const selected = preview?.importJob;
@@ -78,7 +79,9 @@ function Investments({
         body: file,
       });
       if (!response.ok) throw new Error('The file upload failed.');
-      const { storageId } = (await response.json()) as { storageId: Id<'_storage'> };
+      const uploaded = z.object({ storageId: z.string().min(1) }).parse(await response.json());
+      // SAFETY: the authenticated Convex upload endpoint returned this ID; createImport validates its storage-table identity.
+      const storageId = uploaded.storageId as Id<'_storage'>;
       const importId = await createImport({ storageId, fileName: file.name });
       onSelectedImportChange(importId);
       toast.success('Investment export uploaded. Parsing has started.');

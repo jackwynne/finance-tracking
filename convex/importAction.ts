@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { v } from 'convex/values';
 import ExcelJS from 'exceljs';
 import { parseStrict } from 'ofx-js';
+import { z } from 'zod';
 
 import { internal } from './_generated/api';
 import { internalAction } from './_generated/server';
@@ -49,20 +50,40 @@ function sha(value: string | Uint8Array): string {
   return createHash('sha256').update(value).digest('hex');
 }
 
-function asObject(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value))
-    throw new Error('The OFX file has an unexpected structure.');
-  return value as Record<string, unknown>;
-}
+const optionalOfxText = z.string().optional().catch(undefined);
+const ofxBalanceSchema = z.object({ BALAMT: z.string(), DTASOF: z.string() });
+const ofxAccountSchema = z.object({
+  ACCTID: z.string(),
+  BANKID: optionalOfxText,
+  BRANCHID: optionalOfxText,
+  ACCTTYPE: optionalOfxText,
+});
+const ofxTransactionSchema = z
+  .object({
+    FITID: z.string(),
+    DTPOSTED: z.string(),
+    TRNAMT: z.string(),
+    NAME: optionalOfxText,
+    MEMO: optionalOfxText,
+    TRNTYPE: optionalOfxText,
+  })
+  .passthrough();
+const ofxStatementSchema = z.object({
+  CURDEF: z.string(),
+  BANKACCTFROM: ofxAccountSchema.optional(),
+  CCACCTFROM: ofxAccountSchema.optional(),
+  BANKTRANLIST: z.object({ STMTTRN: z.union([ofxTransactionSchema, z.array(ofxTransactionSchema)]).optional() }),
+  LEDGERBAL: ofxBalanceSchema.optional(),
+  AVAILBAL: ofxBalanceSchema.optional(),
+});
+const ofxDocumentSchema = z.object({
+  OFX: z.object({
+    BANKMSGSRSV1: z.object({ STMTTRNRS: z.object({ STMTRS: ofxStatementSchema }) }).optional(),
+    CREDITCARDMSGSRSV1: z.object({ CCSTMTTRNRS: z.object({ CCSTMTRS: ofxStatementSchema }) }).optional(),
+  }),
+});
 
-function asString(value: unknown, field: string): string {
-  if (typeof value !== 'string') throw new Error(`The OFX file is missing ${field}.`);
-  return value.trim();
-}
-
-function optionalString(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
-}
+type ParsedBankImport = { rows: Array<ParsedRow>; summary: ParsedSummary };
 
 function parseFx(text: string) {
   const amount = /FXAmnt=([\d.]+)/i.exec(text)?.[1] ?? /([A-Z]{3})\s+([\d.]+)\s+converted/i.exec(text)?.[2];
@@ -77,32 +98,28 @@ function parseFx(text: string) {
   };
 }
 
-export function parseOfx(text: string): { rows: Array<ParsedRow>; summary: ParsedSummary } {
-  const parsed = parseStrict(text) as unknown;
-  const root = asObject(asObject(parsed).OFX);
-  const bankMessages = root.BANKMSGSRSV1 ? asObject(root.BANKMSGSRSV1) : null;
-  const cardMessages = root.CREDITCARDMSGSRSV1 ? asObject(root.CREDITCARDMSGSRSV1) : null;
-  const statement = bankMessages
-    ? asObject(asObject(asObject(bankMessages.STMTTRNRS).STMTRS))
-    : asObject(asObject(asObject(cardMessages?.CCSTMTTRNRS).CCSTMTRS));
-  const isCard = Boolean(cardMessages);
-  const account = asObject(isCard ? statement.CCACCTFROM : statement.BANKACCTFROM);
-  const accountId = asString(account.ACCTID, 'account identifier');
+export function parseOfx(text: string): ParsedBankImport {
+  const root = ofxDocumentSchema.parse(parseStrict(text)).OFX;
+  const isCard = Boolean(root.CREDITCARDMSGSRSV1);
+  const statement = root.BANKMSGSRSV1?.STMTTRNRS.STMTRS ?? root.CREDITCARDMSGSRSV1?.CCSTMTTRNRS.CCSTMTRS;
+  if (!statement) throw new Error('The OFX file does not contain a bank or credit-card statement.');
+  const account = isCard ? statement.CCACCTFROM : statement.BANKACCTFROM;
+  if (!account) throw new Error('The OFX file is missing its account identifier.');
+  const accountId = account.ACCTID.trim();
   const sourceKey = isCard
     ? `card:${accountId}`
-    : `bank:${optionalString(account.BANKID) ?? ''}:${optionalString(account.BRANCHID) ?? ''}:${accountId}`;
-  const currency = asString(statement.CURDEF, 'currency').toUpperCase();
-  const transactionList = asObject(statement.BANKTRANLIST);
-  const rawTransactions = transactionList.STMTTRN;
+    : `bank:${account.BANKID?.trim() ?? ''}:${account.BRANCHID?.trim() ?? ''}:${accountId}`;
+  const currency = statement.CURDEF.trim().toUpperCase();
+  const rawTransactions = statement.BANKTRANLIST.STMTTRN;
   const transactions = Array.isArray(rawTransactions) ? rawTransactions : rawTransactions ? [rawTransactions] : [];
   const rows = transactions.map((value, index): ParsedRow => {
-    const item = asObject(value);
-    const name = optionalString(item.NAME) ?? '';
-    const memo = optionalString(item.MEMO) ?? '';
+    const item = value;
+    const name = item.NAME?.trim() ?? '';
+    const memo = item.MEMO?.trim() ?? '';
     const rawDescription = [name, memo].filter(Boolean).join(' — ');
-    const sourceId = asString(item.FITID, 'FITID');
-    const postedDate = normalizeDate(asString(item.DTPOSTED, 'posted date'));
-    const amountMinor = toMinorUnits(asString(item.TRNAMT, 'amount'));
+    const sourceId = item.FITID.trim();
+    const postedDate = normalizeDate(item.DTPOSTED.trim());
+    const amountMinor = toMinorUnits(item.TRNAMT.trim());
     const status = /\bpending\b/i.test(rawDescription) ? 'pending' : 'ready';
     const sourceJson = JSON.stringify(item);
     return {
@@ -116,13 +133,13 @@ export function parseOfx(text: string): { rows: Array<ParsedRow>; summary: Parse
       currency,
       rawDescription,
       normalizedDescription: normalizeText(rawDescription),
-      transactionType: optionalString(item.TRNTYPE),
+      transactionType: item.TRNTYPE?.trim() || undefined,
       sourceJson,
       ...parseFx(`${name} ${memo}`),
     };
   });
-  const ledger = statement.LEDGERBAL ? asObject(statement.LEDGERBAL) : null;
-  const available = statement.AVAILBAL ? asObject(statement.AVAILBAL) : null;
+  const ledger = statement.LEDGERBAL;
+  const available = statement.AVAILBAL;
   const dates = rows
     .filter((row) => row.status === 'ready')
     .map((row) => row.postedDate)
@@ -133,7 +150,7 @@ export function parseOfx(text: string): { rows: Array<ParsedRow>; summary: Parse
       detectedAccountName: isCard ? `Credit card ${accountId.slice(-4)}` : `Everyday account ${accountId.slice(-4)}`,
       detectedAccountType: isCard
         ? 'creditCard'
-        : optionalString(account.ACCTTYPE)?.toUpperCase() === 'SAVINGS'
+        : account.ACCTTYPE?.trim().toUpperCase() === 'SAVINGS'
           ? 'savings'
           : 'checking',
       detectedMask: maskAccountIdentifier(accountId),
@@ -141,9 +158,9 @@ export function parseOfx(text: string): { rows: Array<ParsedRow>; summary: Parse
       currency,
       dateFrom: dates[0],
       dateTo: dates.at(-1),
-      ledgerMinor: ledger ? toMinorUnits(asString(ledger.BALAMT, 'ledger balance')) : undefined,
-      availableMinor: available ? toMinorUnits(asString(available.BALAMT, 'available balance')) : undefined,
-      balanceDate: ledger ? normalizeDate(asString(ledger.DTASOF, 'balance date')) : undefined,
+      ledgerMinor: ledger ? toMinorUnits(ledger.BALAMT.trim()) : undefined,
+      availableMinor: available ? toMinorUnits(available.BALAMT.trim()) : undefined,
+      balanceDate: ledger ? normalizeDate(ledger.DTASOF.trim()) : undefined,
     },
   };
 }
@@ -151,8 +168,12 @@ export function parseOfx(text: string): { rows: Array<ParsedRow>; summary: Parse
 function cellText(value: ExcelJS.CellValue): string {
   if (value === null || value === undefined) return '';
   if (value instanceof Date) return value.toISOString();
-  if (typeof value === 'object' && 'text' in value && typeof value.text === 'string') return value.text;
-  if (typeof value === 'object' && 'result' in value) return String(value.result ?? '');
+  const textCell = z.object({ text: z.string() }).safeParse(value);
+  if (textCell.success) return textCell.data.text;
+  const formulaCell = z
+    .object({ result: z.union([z.string(), z.number(), z.boolean(), z.date(), z.null()]).optional() })
+    .safeParse(value);
+  if (formulaCell.success && value instanceof Object && 'result' in value) return String(formulaCell.data.result ?? '');
   return String(value);
 }
 
@@ -164,12 +185,9 @@ function excelDate(value: ExcelJS.CellValue): string | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString().slice(0, 10);
 }
 
-export async function parseXlsx(
-  buffer: Uint8Array,
-  fileName: string,
-): Promise<{ rows: Array<ParsedRow>; summary: ParsedSummary }> {
+export async function parseXlsx(buffer: Uint8Array, fileName: string): Promise<ParsedBankImport> {
   const workbook = new ExcelJS.Workbook();
-  await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer);
+  await workbook.xlsx.load(new Uint8Array(buffer).buffer);
   if (workbook.worksheets.length === 0) throw new Error('The workbook does not contain a Transactions worksheet.');
   const sheet = workbook.getWorksheet('Transactions') ?? workbook.worksheets[0];
   const headers = new Map<string, number>();

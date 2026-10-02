@@ -9,6 +9,7 @@ import {
 } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import {
+  functionalUpdate,
   flexRender,
   getCoreRowModel,
   getFilteredRowModel,
@@ -19,6 +20,7 @@ import type { ColumnDef, SortingState } from '@tanstack/react-table';
 import { useMutation, useQuery } from 'convex/react';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -39,36 +41,17 @@ import {
 } from '@/features/finance/finance-ui';
 
 import { api } from '../../../convex/_generated/api';
-import type { Id } from '../../../convex/_generated/dataModel';
 
 type CounterpartySort = 'name' | 'aliases' | 'defaultCategory' | 'transactionCount' | 'moneyOutMinor';
 
-const counterpartySorts = new Set<CounterpartySort>([
-  'name',
-  'aliases',
-  'defaultCategory',
-  'transactionCount',
-  'moneyOutMinor',
-]);
-
-type CounterpartySearch = {
-  q?: string;
-  sort?: CounterpartySort;
-  direction?: 'asc' | 'desc';
-};
+const counterpartySortSchema = z.enum(['name', 'aliases', 'defaultCategory', 'transactionCount', 'moneyOutMinor']);
 
 export const Route = createFileRoute('/_authenticated/counterparties')({
-  validateSearch: (search: Record<string, unknown>): CounterpartySearch => {
-    const direction = search.direction === 'asc' ? 'asc' : search.direction === 'desc' ? 'desc' : undefined;
-    return {
-      q: typeof search.q === 'string' ? search.q : undefined,
-      sort:
-        typeof search.sort === 'string' && counterpartySorts.has(search.sort as CounterpartySort)
-          ? (search.sort as CounterpartySort)
-          : undefined,
-      direction,
-    };
-  },
+  validateSearch: z.object({
+    q: z.string().optional().catch(undefined),
+    sort: counterpartySortSchema.optional().catch(undefined),
+    direction: z.enum(['asc', 'desc']).optional().catch(undefined),
+  }).parse,
   component: CounterpartiesRoute,
 });
 
@@ -162,7 +145,7 @@ function Counterparties({
             onChange={(event) =>
               void update({
                 counterpartyId: row.original._id,
-                defaultCategoryId: event.target.value ? (event.target.value as Id<'categories'>) : null,
+                defaultCategoryId: flatCategories.find((category) => category._id === event.target.value)?._id ?? null,
               }).catch(showError)
             }
           >
@@ -202,15 +185,15 @@ function Counterparties({
     columns,
     state: { globalFilter: query, sorting },
     onGlobalFilterChange: (updater) => {
-      const nextQuery = typeof updater === 'function' ? updater(query) : updater;
+      const nextQuery = z.string().parse(functionalUpdate(updater, query));
       onTableStateChange({ query: nextQuery, sort, direction });
     },
     onSortingChange: (updater) => {
-      const nextSorting = typeof updater === 'function' ? updater(sorting) : updater;
+      const nextSorting = functionalUpdate(updater, sorting);
       const first = nextSorting.at(0);
       onTableStateChange({
         query,
-        sort: (first?.id as CounterpartySort | undefined) ?? 'moneyOutMinor',
+        sort: counterpartySortSchema.catch('moneyOutMinor').parse(first?.id),
         direction: first?.desc === false ? 'asc' : 'desc',
       });
     },
@@ -270,24 +253,26 @@ function Counterparties({
   const onClassificationFile = async (file: File) => {
     setIsImporting(true);
     try {
-      const classifications = parseCounterpartyClassifications(JSON.parse(await file.text()) as unknown);
-      const knownCounterparties = new Set(counterparties?.map((counterparty) => counterparty._id) ?? []);
-      const knownCategories = new Set(flatCategories.map((category) => category._id));
+      const classifications = parseCounterpartyClassifications(await file.text());
       const seenCounterparties = new Set<string>();
-      for (const classification of classifications) {
+      const importedClassifications = classifications.map((classification) => {
         if (seenCounterparties.has(classification.counterpartyId))
           throw new Error(`Counterparty ${classification.counterpartyId} appears more than once.`);
         seenCounterparties.add(classification.counterpartyId);
-        if (!knownCounterparties.has(classification.counterpartyId))
-          throw new Error(`Counterparty ${classification.counterpartyId} is not in this workspace.`);
-        if (classification.categoryId && !knownCategories.has(classification.categoryId))
+        const counterparty = counterparties?.find((entry) => entry._id === classification.counterpartyId);
+        if (!counterparty) throw new Error(`Counterparty ${classification.counterpartyId} is not in this workspace.`);
+        const category = flatCategories.find((entry) => entry._id === classification.categoryId);
+        if (classification.categoryId !== null && !category)
           throw new Error(`Category ${classification.categoryId} is not in this workspace.`);
-      }
+        return { counterpartyId: counterparty._id, categoryId: category?._id ?? null };
+      });
 
       let updated = 0;
       let unchanged = 0;
       for (let start = 0; start < classifications.length; start += 250) {
-        const result = await importClassifications({ classifications: classifications.slice(start, start + 250) });
+        const result = await importClassifications({
+          classifications: importedClassifications.slice(start, start + 250),
+        });
         updated += result.updated;
         unchanged += result.unchanged;
       }

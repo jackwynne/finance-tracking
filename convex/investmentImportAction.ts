@@ -113,10 +113,12 @@ function recordFromRow(headers: Array<string>, cells: Array<string>): Record<str
   return Object.fromEntries(headers.map((header, index) => [header, cells[index]?.trim() ?? '']));
 }
 
+// Parse failures can contain any JavaScript rejection value; this boundary extracts only Error messages.
 function invalidRow(
   rowNumber: number,
   format: InvestmentImportFormat,
   sourceJson: string,
+  // eslint-disable-next-line anti-slop/no-unknown-parameters
   error: unknown,
 ): ParsedInvestmentRow {
   const message = error instanceof Error ? error.message : 'Invalid investment transaction.';

@@ -1,14 +1,15 @@
-import { createRouter } from '@tanstack/react-router';
 import { ConvexQueryClient } from '@convex-dev/react-query';
 import { QueryClient } from '@tanstack/react-query';
+import { createRouter } from '@tanstack/react-router';
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query';
-import { ConvexProviderWithAuth, ConvexReactClient } from 'convex/react';
 import { AuthKitProvider, useAccessToken, useAuth } from '@workos/authkit-tanstack-react-start/client';
+import { ConvexProviderWithAuth, ConvexReactClient } from 'convex/react';
 import { useCallback, useMemo } from 'react';
+
 import { routeTree } from './routeTree.gen';
 
 export function getRouter() {
-  const CONVEX_URL = (import.meta as any).env.VITE_CONVEX_URL!;
+  const CONVEX_URL = import.meta.env.VITE_CONVEX_URL;
   if (!CONVEX_URL) {
     throw new Error('missing VITE_CONVEX_URL env var');
   }

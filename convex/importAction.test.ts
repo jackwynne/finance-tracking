@@ -96,7 +96,7 @@ test('Excel parsing supports settled and pending rows without collapsing identic
   ]);
   sheet.addRow([new Date('2026-07-12T00:00:00Z'), '', 'Visa Hold', 'Example Cafe', '', '', '', -8, 992]);
   const buffer = await workbook.xlsx.writeBuffer();
-  const parsed = await parseXlsx(buffer as unknown as Uint8Array, '06-0001-1234567-00_Transactions.xlsx');
+  const parsed = await parseXlsx(new Uint8Array(buffer), '06-0001-1234567-00_Transactions.xlsx');
   expect(parsed.rows[0]).toMatchObject({ status: 'ready', amountMinor: -1525n, processedDate: '2026-07-11' });
   expect(parsed.rows[1].status).toBe('pending');
   expect(parsed.summary.ledgerMinor).toBe(100000n);

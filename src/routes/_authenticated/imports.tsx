@@ -3,6 +3,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
+import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,10 +24,10 @@ import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
 
 export const Route = createFileRoute('/_authenticated/imports')({
-  validateSearch: (search: Record<string, unknown>) => ({
-    importId: typeof search.importId === 'string' ? search.importId : undefined,
-    account: typeof search.account === 'string' ? search.account : undefined,
-  }),
+  validateSearch: z.object({
+    importId: z.string().optional().catch(undefined),
+    account: z.string().optional().catch(undefined),
+  }).parse,
   component: ImportsRoute,
 });
 
@@ -70,10 +71,11 @@ function Imports({
   const rollback = useMutation(api.imports.rollback);
   const resolveDuplicate = useMutation(api.imports.resolvePossibleDuplicate);
   const [uploading, setUploading] = useState(false);
-  const selectedId = selectedImportId ? (selectedImportId as Id<'imports'>) : null;
+  const selectedId = imports?.find((entry) => entry._id === selectedImportId)?._id ?? null;
   const preview = useQuery(api.imports.preview, selectedId ? { importId: selectedId } : 'skip');
   const downloadUrl = useQuery(api.imports.sourceDownloadUrl, selectedId ? { importId: selectedId } : 'skip');
   const selected = preview?.importJob;
+  const selectedAccountId = accounts?.find((account) => account._id === accountId)?._id;
 
   async function upload(file: File) {
     if (!/\.(ofx|xlsx)$/i.test(file.name)) return toast.error('Choose an OFX or XLSX file.');
@@ -86,7 +88,9 @@ function Imports({
         body: file,
       });
       if (!response.ok) throw new Error('The file upload failed.');
-      const { storageId } = (await response.json()) as { storageId: Id<'_storage'> };
+      const uploaded = z.object({ storageId: z.string().min(1) }).parse(await response.json());
+      // SAFETY: the authenticated Convex upload endpoint returned this ID; createImport validates its storage-table identity.
+      const storageId = uploaded.storageId as Id<'_storage'>;
       const importId = await createImport({ storageId, fileName: file.name });
       onSelectionChange({ importId, accountId: '' });
       toast.success('File uploaded. Parsing has started.');
@@ -242,8 +246,8 @@ function Imports({
                       <Button
                         onClick={() =>
                           void confirmAccount(
-                            accountId
-                              ? { importId: selected._id, accountId: accountId as Id<'accounts'> }
+                            selectedAccountId
+                              ? { importId: selected._id, accountId: selectedAccountId }
                               : {
                                   importId: selected._id,
                                   createAccount: {
