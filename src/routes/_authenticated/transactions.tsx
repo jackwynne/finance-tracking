@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, usePaginatedQuery, useQuery } from 'convex/react';
+import { useState } from 'react';
 import { z } from 'zod';
 
 import { Button } from '@/components/ui/button';
@@ -50,6 +51,7 @@ function Transactions({
   const categories = useQuery(api.finance.listCategories);
   const accounts = useQuery(api.finance.listAccounts, {});
   const update = useMutation(api.finance.updateTransaction);
+  const [rememberCounterparty, setRememberCounterparty] = useState(false);
   const selectedAccountId = accounts?.find((account) => account._id === accountId)?._id;
   const selectedCategoryId = categories
     ?.flatMap((group) => group.categories)
@@ -75,6 +77,17 @@ function Transactions({
           <div>
             <CardTitle>All activity</CardTitle>
             <CardDescription>{results.length} loaded transactions</CardDescription>
+            <label className="mt-2 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={rememberCounterparty}
+                onChange={(event) => setRememberCounterparty(event.target.checked)}
+              />
+              Remember category changes for future imports
+            </label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Checked changes also set the counterparty default. Other existing transactions keep their categories.
+            </p>
           </div>
           <div className="mt-3 flex gap-2 sm:mt-0">
             <NativeSelect
@@ -136,7 +149,7 @@ function Transactions({
                             transactionId: transaction._id,
                             categoryId:
                               flatCategories.find((category) => category._id === event.target.value)?._id ?? null,
-                            scope: 'transaction',
+                            scope: rememberCounterparty && transaction.counterpartyId ? 'future' : 'transaction',
                           }).catch(showError)
                         }
                       >
@@ -151,7 +164,7 @@ function Transactions({
                     <TableCell
                       className={`text-right font-heading font-semibold ${transaction.amountMinor >= 0n ? 'text-primary' : ''}`}
                     >
-                      {formatMoney(transaction.amountMinor)}
+                      {formatMoney(transaction.amountMinor, transaction.currency)}
                     </TableCell>
                     <TableCell className="pr-4 text-right">
                       <Button

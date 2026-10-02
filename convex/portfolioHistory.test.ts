@@ -86,3 +86,112 @@ test('holding history applies dated ownership shares and never backfills a futur
     { date: '2026-10-01', value: '600000' },
   ]);
 });
+
+test('unit timelines keep source accounts distinct, aggregate signed same-day trades and transfers, and omit future or voided rows', async () => {
+  const t = convexTest(schema, modules);
+  const owner = t.withIdentity({ tokenIdentifier: 'test|unitHistory', subject: 'unitHistory', issuer: 'test' });
+  await owner.mutation(api.profiles.ensureCurrent, {});
+  const profile = await owner.query(api.profiles.current, {});
+  if (!profile) throw new Error('Missing profile');
+  await owner.run(async (ctx) => {
+    const storageId = await ctx.storage.store(new Blob(['history']));
+    const importId = await ctx.db.insert('investmentImports', {
+      ownerId: profile._id,
+      storageId,
+      fileName: 'history.csv',
+      size: 7,
+      sha256: 'test',
+      status: 'committed',
+      totalRows: 8,
+      readyRows: 0,
+      duplicateRows: 0,
+      invalidRows: 0,
+      committedRows: 8,
+      startedAt: 1,
+    });
+    for (const account of ['Registry', 'Sharesies']) {
+      const accountId = await ctx.db.insert('investmentAccounts', {
+        ownerId: profile._id,
+        name: account,
+        provider: account,
+        currency: 'NZD',
+        sourceKeyHash: account,
+        archived: false,
+      });
+      const rows =
+        account === 'Registry'
+          ? [
+              {
+                effectiveDate: '2026-01-01',
+                instrumentCode: 'MDZ',
+                units: '100.123456',
+                transactionType: 'Purchase',
+                voided: false,
+              },
+              {
+                effectiveDate: '2026-01-01',
+                instrumentCode: 'MDZ',
+                units: '-0.123456',
+                transactionType: 'Sale',
+                voided: false,
+              },
+              {
+                effectiveDate: '2026-02-01',
+                instrumentCode: 'MDZ',
+                units: '-100',
+                transactionType: 'Transfer',
+                voided: false,
+              },
+              {
+                effectiveDate: '2026-02-01',
+                instrumentCode: 'USG',
+                units: '25',
+                transactionType: 'Purchase',
+                voided: false,
+              },
+              {
+                effectiveDate: '2026-02-01',
+                instrumentCode: 'MDZ',
+                units: '999',
+                transactionType: 'Purchase',
+                voided: true,
+              },
+              {
+                effectiveDate: '2026-05-01',
+                instrumentCode: 'MDZ',
+                units: '50',
+                transactionType: 'Purchase',
+                voided: false,
+              },
+            ]
+          : [
+              {
+                effectiveDate: '2026-02-01',
+                instrumentCode: 'MDZ',
+                units: '100',
+                transactionType: 'Transfer',
+                voided: false,
+              },
+            ];
+      for (const row of rows)
+        await ctx.db.insert('investmentTransactions', {
+          ...row,
+          ownerId: profile._id,
+          accountId,
+          description: row.transactionType,
+          currency: 'NZD',
+          createdByImportId: importId,
+        });
+    }
+  });
+  const series = await owner.query(api.portfolioHistory.recordedUnitActivity, { asOf: '2026-04-01' });
+  expect(series).toHaveLength(3);
+  expect(series.find((row) => row.account === 'Registry' && row.instrument === 'MDZ')?.observations).toEqual([
+    { date: '2026-01-01', delta: '100', netUnits: '100', types: ['Purchase', 'Sale'], count: 2 },
+    { date: '2026-02-01', delta: '-100', netUnits: '0', types: ['Transfer'], count: 1 },
+  ]);
+  expect(series.find((row) => row.account === 'Sharesies')?.observations[0].netUnits).toBe('100');
+  const other = t.withIdentity({ tokenIdentifier: 'test|otherUnits', subject: 'otherUnits', issuer: 'test' });
+  await other.mutation(api.profiles.ensureCurrent, {});
+  expect(await other.query(api.portfolioHistory.recordedUnitActivity, { asOf: '2026-04-01' })).toEqual([]);
+});

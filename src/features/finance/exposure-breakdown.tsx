@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 import type { api } from '../../../convex/_generated/api';
+import { decimal, decimalText, SCALE } from '../../../convex/lib/portfolioMath';
 import { exposureMoney, exposurePercent, rankedExposure } from './exposure-format';
 import { FinanceBarChart } from './finance-charts';
 
@@ -57,6 +58,9 @@ export function ExposureBreakdown({
                 <span className="tabular-nums">{exposureMoney(contribution.value, currency)}</span>
               </div>
               <p className="text-xs text-muted-foreground">
+                {decimal(row.value) > 0n
+                  ? `${exposurePercent(decimalText((decimal(contribution.value) * 100n * SCALE) / decimal(row.value)))} of this ${dimension === 'assetClass' ? 'asset class' : dimension} exposure. `
+                  : 'Net exposure is zero or negative; no share percentage. '}
                 {exposurePercent(String(Number(contribution.weight) * 100))} of this holding. Disclosure{' '}
                 {contribution.allocationDate}.
               </p>

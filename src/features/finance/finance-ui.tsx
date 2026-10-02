@@ -7,9 +7,10 @@ import { financeErrorMessage } from '@/lib/finance-error';
 
 export const money = new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD' });
 
-export function formatMoney(value: bigint | number | undefined) {
+export function formatMoney(value: bigint | number | undefined, currency = 'NZD') {
   if (value === undefined) return '—';
-  return money.format(Number(value) / 100);
+  const formatter = currency === 'NZD' ? money : new Intl.NumberFormat('en-NZ', { style: 'currency', currency });
+  return formatter.format(Number(value) / 100);
 }
 
 export function nzDate(value: string | undefined) {

@@ -349,3 +349,161 @@ test('rolling back a file preserves transactions backed by active Akahu evidence
     vi.useRealTimers();
   }
 });
+
+test('remembering a category applies to future imports while preserving historical choices', async () => {
+  vi.useFakeTimers();
+  try {
+    const { t, owner, profile, accountId, importId } = await setup();
+    const groups = await owner.query(api.finance.listCategories, {});
+    const oldCategory = groups[0].categories[0];
+    const remembered = groups[1].categories[0];
+    const ids = await owner.run(async (ctx) => {
+      const merchant = await ctx.db.insert('counterparties', {
+        ownerId: profile._id,
+        name: 'Myki tap transport 01 10 2026',
+        normalizedName: 'myki tap transport 01 10 2026',
+        archived: false,
+        defaultCategoryId: oldCategory._id,
+      });
+      const base = {
+        ownerId: profile._id,
+        accountId,
+        postedDate: '2026-10-01',
+        amountMinor: -100n,
+        currency: 'AUD',
+        rawDescription: 'Myki tap transport 01 10 2026',
+        normalizedDescription: 'myki tap transport 01 10 2026',
+        excluded: false,
+        voided: false,
+        reportingKind: 'standard' as const,
+        createdByImportId: importId,
+        counterpartyId: merchant,
+        categoryId: oldCategory._id,
+        categoryProvenance: 'manual' as const,
+      };
+      const anchor = await ctx.db.insert('transactions', base);
+      const historic = await ctx.db.insert('transactions', base);
+      for (let index = 0; index < 110; index++) {
+        await ctx.db.insert('counterparties', {
+          ownerId: profile._id,
+          name: `Myki tap transport ${index}`,
+          normalizedName: `myki tap transport ${index}`,
+          archived: false,
+          defaultCategoryId: remembered._id,
+        });
+      }
+      await ctx.db.patch('imports', importId, { status: 'committing' });
+      const row = await ctx.db.insert('importRows', {
+        ownerId: profile._id,
+        importId,
+        rowNumber: 1,
+        status: 'ready',
+        format: 'ofx',
+        dedupeKey: 'next-purchase',
+        postedDate: '2026-10-02',
+        amountMinor: -200n,
+        currency: 'AUD',
+        rawDescription: 'Myki tap transport 02 10 2026',
+        normalizedDescription: 'myki tap transport 02 10 2026',
+        sourceJson: '{}',
+      });
+      return { merchant, anchor, historic, row };
+    });
+    await owner.mutation(api.finance.updateTransaction, {
+      transactionId: ids.anchor,
+      categoryId: remembered._id,
+      scope: 'future',
+    });
+    expect(await owner.run((ctx) => ctx.db.get('counterparties', ids.merchant))).toMatchObject({
+      defaultCategoryId: remembered._id,
+    });
+    expect(await owner.run((ctx) => ctx.db.get('transactions', ids.historic))).toMatchObject({
+      categoryId: oldCategory._id,
+      categoryProvenance: 'manual',
+    });
+    await t.mutation(internal.imports.commitBatch, { importId });
+    const row = await owner.run((ctx) => ctx.db.get('importRows', ids.row));
+    if (!row?.transactionId) throw new Error('Missing imported transaction');
+    const importedTransactionId = row.transactionId;
+    expect(await owner.run((ctx) => ctx.db.get('transactions', importedTransactionId))).toMatchObject({
+      categoryId: remembered._id,
+      categoryProvenance: 'merchant',
+      currency: 'AUD',
+    });
+    const conflictingRow = await owner.run(async (ctx) => {
+      await ctx.db.insert('counterparties', {
+        ownerId: profile._id,
+        name: 'Myki tap transport other card',
+        normalizedName: 'myki tap transport other card',
+        archived: false,
+        defaultCategoryId: oldCategory._id,
+      });
+      return ctx.db.insert('importRows', {
+        ownerId: profile._id,
+        importId,
+        rowNumber: 2,
+        status: 'ready',
+        format: 'ofx',
+        dedupeKey: 'conflicting-purchase',
+        postedDate: '2026-10-03',
+        amountMinor: -300n,
+        currency: 'AUD',
+        rawDescription: 'Myki tap transport 03 10 2026',
+        normalizedDescription: 'myki tap transport 03 10 2026',
+        sourceJson: '{}',
+      });
+    });
+    await t.mutation(internal.imports.commitBatch, { importId });
+    const conflict = await owner.run((ctx) => ctx.db.get('importRows', conflictingRow));
+    if (!conflict?.transactionId) throw new Error('Missing conflict transaction');
+    const conflictTransactionId = conflict.transactionId;
+    expect((await owner.run((ctx) => ctx.db.get('transactions', conflictTransactionId)))?.categoryId).toBeUndefined();
+    await owner.mutation(api.finance.updateTransaction, {
+      transactionId: ids.anchor,
+      categoryId: null,
+      scope: 'future',
+    });
+    expect((await owner.run((ctx) => ctx.db.get('counterparties', ids.merchant)))?.defaultCategoryId).toBeUndefined();
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+test('counterparty amounts remain separate for NZD and AUD', async () => {
+  const { owner, profile, accountId, importId } = await setup();
+  const counterpartyId = await owner.run(async (ctx) => {
+    const merchant = await ctx.db.insert('counterparties', {
+      ownerId: profile._id,
+      name: 'Shop',
+      normalizedName: 'shop',
+      archived: false,
+    });
+    for (const [currency, amountMinor] of [
+      ['NZD', -100n],
+      ['AUD', -250n],
+      ['AUD', 75n],
+    ] as const) {
+      await ctx.db.insert('transactions', {
+        ownerId: profile._id,
+        accountId,
+        postedDate: '2026-10-01',
+        amountMinor,
+        currency,
+        rawDescription: 'Shop',
+        normalizedDescription: 'shop',
+        excluded: false,
+        voided: false,
+        reportingKind: 'standard',
+        createdByImportId: importId,
+        counterpartyId: merchant,
+      });
+    }
+    return merchant;
+  });
+  const result = await owner.query(api.finance.listCounterparties, {});
+  expect(result.find((entry) => entry._id === counterpartyId)?.totalsByCurrency).toEqual([
+    { currency: 'AUD', moneyInMinor: 75n, moneyOutMinor: 250n },
+    { currency: 'NZD', moneyInMinor: 0n, moneyOutMinor: 100n },
+  ]);
+});

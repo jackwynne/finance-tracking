@@ -5,6 +5,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, internalQuery, mutation, query } from './_generated/server';
 import type { MutationCtx } from './_generated/server';
 import { assertOwner, requireProfile } from './lib/auth';
+import { agreedFamilyDefault, counterpartyFamily } from './lib/counterpartyDefaults';
 import { daysBetween } from './lib/finance';
 import { parsedImportRowValidator, parsedSummaryValidator } from './lib/validators';
 
@@ -366,6 +367,7 @@ export const commitBatch = internalMutation({
           .withIndex('by_importId_and_status', (q) => q.eq('importId', importJob._id).eq('status', 'duplicate'))
           .take(20);
     const rows = ready.length ? ready : duplicates;
+    const familyDefaults = new Map<string, Id<'categories'> | undefined>();
     for (const row of rows) {
       let transactionId = row.transactionId;
       if (!transactionId) {
@@ -375,6 +377,22 @@ export const commitBatch = internalMutation({
           row.rawDescription,
           row.normalizedDescription,
         );
+        let categoryId = counterparty.defaultCategoryId;
+        const family = counterpartyFamily(counterparty.normalizedName);
+        if (!categoryId && family && !familyDefaults.has(family)) {
+          const candidates = await ctx.db
+            .query('counterparties')
+            .withIndex('by_ownerId_and_normalizedName', (q) =>
+              q.eq('ownerId', importJob.ownerId).gte('normalizedName', family).lt('normalizedName', `${family}\uffff`),
+            )
+            .take(501);
+          familyDefaults.set(family, candidates.length <= 500 ? agreedFamilyDefault(candidates, family) : undefined);
+        }
+        if (!categoryId && family) categoryId = familyDefaults.get(family);
+        if (categoryId) {
+          const category = await ctx.db.get('categories', categoryId);
+          if (!category || category.ownerId !== importJob.ownerId || category.archived) categoryId = undefined;
+        }
         transactionId = await ctx.db.insert('transactions', {
           ownerId: importJob.ownerId,
           accountId: importJob.accountId,
@@ -386,8 +404,8 @@ export const commitBatch = internalMutation({
           normalizedDescription: row.normalizedDescription,
           transactionType: row.transactionType,
           counterpartyId: counterparty._id,
-          categoryId: counterparty.defaultCategoryId,
-          categoryProvenance: counterparty.defaultCategoryId ? 'merchant' : 'import',
+          categoryId,
+          categoryProvenance: categoryId ? 'merchant' : 'import',
           excluded: false,
           voided: false,
           reportingKind: 'standard',

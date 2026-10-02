@@ -83,3 +83,64 @@ export const recordedBalances = query({
     return series;
   },
 });
+
+export const recordedUnitActivity = query({
+  args: { asOf: v.string() },
+  handler: async (ctx, args) => {
+    const profile = await requireProfile(ctx);
+    date(args.asOf);
+    const accounts = await ctx.db
+      .query('investmentAccounts')
+      .withIndex('by_ownerId_and_archived', (q) => q.eq('ownerId', profile._id).eq('archived', false))
+      .take(51);
+    if (accounts.length > 50) throw new ConvexError('Unit history supports up to 50 investment accounts.');
+    const series = [];
+    for (const account of accounts) {
+      const transactions = await ctx.db
+        .query('investmentTransactions')
+        .withIndex('by_ownerId_and_accountId_and_effectiveDate', (q) =>
+          q.eq('ownerId', profile._id).eq('accountId', account._id).lte('effectiveDate', args.asOf),
+        )
+        .order('asc')
+        .take(2001);
+      if (transactions.length > 2000)
+        throw new ConvexError(
+          'Unit history exceeds 2000 transactions for an account. Export the full ledger before reporting.',
+        );
+      const instruments = new Map<string, Map<string, { units: bigint; types: Set<string>; count: number }>>();
+      for (const transaction of transactions) {
+        if (transaction.voided) continue;
+        const instrument = transaction.instrumentCode ?? '';
+        const days =
+          instruments.get(instrument) ?? new Map<string, { units: bigint; types: Set<string>; count: number }>();
+        const day = days.get(transaction.effectiveDate) ?? { units: 0n, types: new Set<string>(), count: 0 };
+        day.units += decimal(transaction.units);
+        day.types.add(transaction.transactionType);
+        day.count += 1;
+        days.set(transaction.effectiveDate, day);
+        instruments.set(instrument, days);
+      }
+      for (const [instrument, days] of instruments) {
+        let cumulative = 0n;
+        const observations = [...days].map(([effectiveDate, day]) => {
+          cumulative += day.units;
+          return {
+            date: effectiveDate,
+            delta: decimalText(day.units),
+            netUnits: decimalText(cumulative),
+            types: [...day.types],
+            count: day.count,
+          };
+        });
+        series.push({
+          id: `${account._id}:${instrument}`,
+          account: account.name,
+          provider: account.provider,
+          instrument: instrument || null,
+          observations,
+        });
+      }
+    }
+    return series;
+  },
+});

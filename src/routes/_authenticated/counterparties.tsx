@@ -171,11 +171,23 @@ function Counterparties({
         size: 150,
         minSize: 130,
         sortingFn: (rowA, rowB, columnId) => {
+          const firstCurrency = rowA.original.totalsByCurrency.map((total) => total.currency).join(',');
+          const secondCurrency = rowB.original.totalsByCurrency.map((total) => total.currency).join(',');
+          if (firstCurrency !== secondCurrency) return firstCurrency.localeCompare(secondCurrency);
+          if (rowA.original.totalsByCurrency.length > 1) return rowA.original.name.localeCompare(rowB.original.name);
           const first = rowA.getValue<bigint>(columnId);
           const second = rowB.getValue<bigint>(columnId);
           return first === second ? 0 : first > second ? 1 : -1;
         },
-        cell: ({ row }) => <span className="font-heading font-medium">{formatMoney(row.original.moneyOutMinor)}</span>,
+        cell: ({ row }) => (
+          <span className="font-heading font-medium">
+            {row.original.totalsByCurrency.map((total) => (
+              <span key={total.currency} className="block">
+                {formatMoney(total.moneyOutMinor, total.currency)}
+              </span>
+            ))}
+          </span>
+        ),
       },
     ],
     [categoryLabels, flatCategories, update],
@@ -207,7 +219,7 @@ function Counterparties({
         ...counterparty.aliases.map((alias) => alias.alias),
         category,
         counterparty.transactionCount.toString(),
-        formatMoney(counterparty.moneyOutMinor),
+        ...counterparty.totalsByCurrency.map((total) => formatMoney(total.moneyOutMinor, total.currency)),
       ]
         .join(' ')
         .toLocaleLowerCase();
@@ -242,7 +254,11 @@ function Counterparties({
         name: counterparty.name,
         aliases: counterparty.aliases.map((alias) => alias.alias),
         transactionCount: counterparty.transactionCount,
-        moneyOutMinor: counterparty.moneyOutMinor.toString(),
+        totalsByCurrency: counterparty.totalsByCurrency.map((total) => ({
+          currency: total.currency,
+          moneyInMinor: total.moneyInMinor.toString(),
+          moneyOutMinor: total.moneyOutMinor.toString(),
+        })),
         lastSeen: counterparty.lastSeen,
         categoryId: counterparty.defaultCategoryId ?? null,
       })),
@@ -290,7 +306,7 @@ function Counterparties({
       <PageHeading
         eyebrow="Classification"
         title="Counterparties"
-        description="Classify a merchant or payer once. Confirmed defaults are reused automatically on future imports."
+        description="Set defaults for future imports. Known Myki, Uber, DiDi and Les Mills payment variants also reuse a default when their categories agree."
         action={
           <div className="flex flex-wrap gap-2">
             <input

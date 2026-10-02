@@ -243,12 +243,15 @@ export const updateTransaction = mutation({
     counterpartyId: v.optional(v.union(v.id('counterparties'), v.null())),
     notes: v.optional(v.string()),
     excluded: v.optional(v.boolean()),
-    scope: v.union(v.literal('transaction'), v.literal('unclassified'), v.literal('all')),
+    scope: v.union(v.literal('transaction'), v.literal('future'), v.literal('unclassified'), v.literal('all')),
   },
   handler: async (ctx, args) => {
     const profile = await requireProfile(ctx);
     const transaction = assertOwner(await ctx.db.get('transactions', args.transactionId), profile._id);
-    if (args.categoryId) await ownedCategory(ctx, args.categoryId, profile._id);
+    if (args.categoryId) {
+      const category = await ownedCategory(ctx, args.categoryId, profile._id);
+      if (category.archived) throw new ConvexError('Archived categories cannot be assigned.');
+    }
     if (args.counterpartyId) assertOwner(await ctx.db.get('counterparties', args.counterpartyId), profile._id);
 
     const patch: Partial<Doc<'transactions'>> = {};
@@ -263,9 +266,11 @@ export const updateTransaction = mutation({
 
     const counterpartyId =
       args.counterpartyId === null ? undefined : (args.counterpartyId ?? transaction.counterpartyId);
-    if (args.scope !== 'transaction' && counterpartyId && args.categoryId) {
-      await ctx.db.patch('counterparties', counterpartyId, { defaultCategoryId: args.categoryId });
-      {
+    if (args.scope !== 'transaction' && counterpartyId && args.categoryId !== undefined) {
+      const counterparty = assertOwner(await ctx.db.get('counterparties', counterpartyId), profile._id);
+      if (counterparty.archived) throw new ConvexError('Archived counterparties cannot be classified.');
+      await ctx.db.patch('counterparties', counterpartyId, { defaultCategoryId: args.categoryId ?? undefined });
+      if (args.scope !== 'future' && args.categoryId) {
         const matches = await ctx.db
           .query('transactions')
           .withIndex('by_ownerId_and_counterpartyId_and_postedDate', (q) =>
@@ -318,8 +323,20 @@ export const listCounterparties = query({
           .query('counterpartyAliases')
           .withIndex('by_counterpartyId', (q) => q.eq('counterpartyId', counterparty._id))
           .collect();
+        const totals = new Map<string, { currency: string; moneyInMinor: bigint; moneyOutMinor: bigint }>();
+        for (const transaction of matching) {
+          const total = totals.get(transaction.currency) ?? {
+            currency: transaction.currency,
+            moneyInMinor: 0n,
+            moneyOutMinor: 0n,
+          };
+          if (transaction.amountMinor > 0n) total.moneyInMinor += transaction.amountMinor;
+          else total.moneyOutMinor -= transaction.amountMinor;
+          totals.set(transaction.currency, total);
+        }
         return {
           ...counterparty,
+          totalsByCurrency: [...totals.values()].sort((a, b) => a.currency.localeCompare(b.currency)),
           aliases,
           transactionCount: matching.length,
           moneyInMinor: matching.reduce((sum, item) => sum + (item.amountMinor > 0n ? item.amountMinor : 0n), 0n),
@@ -340,7 +357,10 @@ export const updateCounterparty = mutation({
   handler: async (ctx, args) => {
     const profile = await requireProfile(ctx);
     assertOwner(await ctx.db.get('counterparties', args.counterpartyId), profile._id);
-    if (args.defaultCategoryId) await ownedCategory(ctx, args.defaultCategoryId, profile._id);
+    if (args.defaultCategoryId) {
+      const category = await ownedCategory(ctx, args.defaultCategoryId, profile._id);
+      if (category.archived) throw new ConvexError('Archived categories cannot be assigned.');
+    }
     const patch: Partial<Doc<'counterparties'>> = {};
     if (args.name !== undefined) {
       patch.name = args.name.trim();
