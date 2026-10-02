@@ -14,9 +14,13 @@ import { Route as SignInRouteImport } from './routes/sign-in'
 import { Route as CallbackRouteImport } from './routes/callback'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthenticatedUpdatesRouteImport } from './routes/_authenticated/updates'
 import { Route as AuthenticatedTransactionsRouteImport } from './routes/_authenticated/transactions'
+import { Route as AuthenticatedSpendingRouteImport } from './routes/_authenticated/spending'
+import { Route as AuthenticatedSetupRouteImport } from './routes/_authenticated/setup'
 import { Route as AuthenticatedInvestmentsRouteImport } from './routes/_authenticated/investments'
 import { Route as AuthenticatedImportsRouteImport } from './routes/_authenticated/imports'
+import { Route as AuthenticatedExposureRouteImport } from './routes/_authenticated/exposure'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedCounterpartiesRouteImport } from './routes/_authenticated/counterparties'
 import { Route as AuthenticatedAccountsRouteImport } from './routes/_authenticated/accounts'
@@ -45,12 +49,27 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedUpdatesRoute = AuthenticatedUpdatesRouteImport.update({
+  id: '/updates',
+  path: '/updates',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedTransactionsRoute =
   AuthenticatedTransactionsRouteImport.update({
     id: '/transactions',
     path: '/transactions',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSpendingRoute = AuthenticatedSpendingRouteImport.update({
+  id: '/spending',
+  path: '/spending',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedSetupRoute = AuthenticatedSetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedInvestmentsRoute =
   AuthenticatedInvestmentsRouteImport.update({
     id: '/investments',
@@ -60,6 +79,11 @@ const AuthenticatedInvestmentsRoute =
 const AuthenticatedImportsRoute = AuthenticatedImportsRouteImport.update({
   id: '/imports',
   path: '/imports',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
+const AuthenticatedExposureRoute = AuthenticatedExposureRouteImport.update({
+  id: '/exposure',
+  path: '/exposure',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -87,9 +111,13 @@ export interface FileRoutesByFullPath {
   '/accounts': typeof AuthenticatedAccountsRoute
   '/counterparties': typeof AuthenticatedCounterpartiesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/exposure': typeof AuthenticatedExposureRoute
   '/imports': typeof AuthenticatedImportsRoute
   '/investments': typeof AuthenticatedInvestmentsRoute
+  '/setup': typeof AuthenticatedSetupRoute
+  '/spending': typeof AuthenticatedSpendingRoute
   '/transactions': typeof AuthenticatedTransactionsRoute
+  '/updates': typeof AuthenticatedUpdatesRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -99,9 +127,13 @@ export interface FileRoutesByTo {
   '/accounts': typeof AuthenticatedAccountsRoute
   '/counterparties': typeof AuthenticatedCounterpartiesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/exposure': typeof AuthenticatedExposureRoute
   '/imports': typeof AuthenticatedImportsRoute
   '/investments': typeof AuthenticatedInvestmentsRoute
+  '/setup': typeof AuthenticatedSetupRoute
+  '/spending': typeof AuthenticatedSpendingRoute
   '/transactions': typeof AuthenticatedTransactionsRoute
+  '/updates': typeof AuthenticatedUpdatesRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -113,9 +145,13 @@ export interface FileRoutesById {
   '/_authenticated/accounts': typeof AuthenticatedAccountsRoute
   '/_authenticated/counterparties': typeof AuthenticatedCounterpartiesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/exposure': typeof AuthenticatedExposureRoute
   '/_authenticated/imports': typeof AuthenticatedImportsRoute
   '/_authenticated/investments': typeof AuthenticatedInvestmentsRoute
+  '/_authenticated/setup': typeof AuthenticatedSetupRoute
+  '/_authenticated/spending': typeof AuthenticatedSpendingRoute
   '/_authenticated/transactions': typeof AuthenticatedTransactionsRoute
+  '/_authenticated/updates': typeof AuthenticatedUpdatesRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -127,9 +163,13 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/counterparties'
     | '/dashboard'
+    | '/exposure'
     | '/imports'
     | '/investments'
+    | '/setup'
+    | '/spending'
     | '/transactions'
+    | '/updates'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -139,9 +179,13 @@ export interface FileRouteTypes {
     | '/accounts'
     | '/counterparties'
     | '/dashboard'
+    | '/exposure'
     | '/imports'
     | '/investments'
+    | '/setup'
+    | '/spending'
     | '/transactions'
+    | '/updates'
   id:
     | '__root__'
     | '/'
@@ -152,9 +196,13 @@ export interface FileRouteTypes {
     | '/_authenticated/accounts'
     | '/_authenticated/counterparties'
     | '/_authenticated/dashboard'
+    | '/_authenticated/exposure'
     | '/_authenticated/imports'
     | '/_authenticated/investments'
+    | '/_authenticated/setup'
+    | '/_authenticated/spending'
     | '/_authenticated/transactions'
+    | '/_authenticated/updates'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -202,11 +250,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/updates': {
+      id: '/_authenticated/updates'
+      path: '/updates'
+      fullPath: '/updates'
+      preLoaderRoute: typeof AuthenticatedUpdatesRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/transactions': {
       id: '/_authenticated/transactions'
       path: '/transactions'
       fullPath: '/transactions'
       preLoaderRoute: typeof AuthenticatedTransactionsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/spending': {
+      id: '/_authenticated/spending'
+      path: '/spending'
+      fullPath: '/spending'
+      preLoaderRoute: typeof AuthenticatedSpendingRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/setup': {
+      id: '/_authenticated/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof AuthenticatedSetupRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/investments': {
@@ -221,6 +290,13 @@ declare module '@tanstack/react-router' {
       path: '/imports'
       fullPath: '/imports'
       preLoaderRoute: typeof AuthenticatedImportsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/exposure': {
+      id: '/_authenticated/exposure'
+      path: '/exposure'
+      fullPath: '/exposure'
+      preLoaderRoute: typeof AuthenticatedExposureRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/dashboard': {
@@ -251,18 +327,26 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAccountsRoute: typeof AuthenticatedAccountsRoute
   AuthenticatedCounterpartiesRoute: typeof AuthenticatedCounterpartiesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedExposureRoute: typeof AuthenticatedExposureRoute
   AuthenticatedImportsRoute: typeof AuthenticatedImportsRoute
   AuthenticatedInvestmentsRoute: typeof AuthenticatedInvestmentsRoute
+  AuthenticatedSetupRoute: typeof AuthenticatedSetupRoute
+  AuthenticatedSpendingRoute: typeof AuthenticatedSpendingRoute
   AuthenticatedTransactionsRoute: typeof AuthenticatedTransactionsRoute
+  AuthenticatedUpdatesRoute: typeof AuthenticatedUpdatesRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAccountsRoute: AuthenticatedAccountsRoute,
   AuthenticatedCounterpartiesRoute: AuthenticatedCounterpartiesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedExposureRoute: AuthenticatedExposureRoute,
   AuthenticatedImportsRoute: AuthenticatedImportsRoute,
   AuthenticatedInvestmentsRoute: AuthenticatedInvestmentsRoute,
+  AuthenticatedSetupRoute: AuthenticatedSetupRoute,
+  AuthenticatedSpendingRoute: AuthenticatedSpendingRoute,
   AuthenticatedTransactionsRoute: AuthenticatedTransactionsRoute,
+  AuthenticatedUpdatesRoute: AuthenticatedUpdatesRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(

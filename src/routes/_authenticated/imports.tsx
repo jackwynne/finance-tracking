@@ -239,7 +239,7 @@ function Imports({
                         <option value="">Create “{selected.detectedAccountName}”</option>
                         {accounts?.map((account) => (
                           <option key={account._id} value={account._id}>
-                            {account.name} · {account.mask}
+                            {account.name} · {account.mask} · {account._id.slice(-6)}
                           </option>
                         ))}
                       </NativeSelect>

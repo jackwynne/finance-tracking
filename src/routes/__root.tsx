@@ -8,6 +8,8 @@ import type { ReactNode } from 'react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 import appCssUrl from '../app.css?url';
+import geistMonoCssUrl from '@fontsource-variable/geist-mono/index.css?url';
+import oxaniumCssUrl from '@fontsource-variable/oxanium/index.css?url';
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -29,6 +31,8 @@ export const Route = createRootRouteWithContext<{
     ],
     links: [
       { rel: 'stylesheet', href: appCssUrl },
+      { rel: 'stylesheet', href: oxaniumCssUrl },
+      { rel: 'stylesheet', href: geistMonoCssUrl },
       { rel: 'icon', href: '/convex.svg' },
     ],
   }),

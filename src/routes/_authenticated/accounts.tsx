@@ -114,7 +114,9 @@ function AccountCard({
           </div>
           <Badge variant="outline">{account.type}</Badge>
         </div>
-        <CardTitle>{account.name}</CardTitle>
+        <CardTitle>
+          {account.name} · {account._id.slice(-6)}
+        </CardTitle>
         <CardDescription>
           {account.institution ? `${account.institution} · ` : ''}
           {account.mask}

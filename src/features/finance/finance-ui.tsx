@@ -3,6 +3,7 @@ import type { ReactNode, SelectHTMLAttributes } from 'react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
+import { financeErrorMessage } from '@/lib/finance-error';
 
 export const money = new Intl.NumberFormat('en-NZ', { style: 'currency', currency: 'NZD' });
 
@@ -112,5 +113,5 @@ export function EmptyState({ title, detail }: { title: string; detail: string })
 // Promise rejection values are untyped; Error narrows the message at the notification boundary.
 // eslint-disable-next-line anti-slop/no-unknown-parameters
 export function showError(error: unknown) {
-  toast.error(error instanceof Error ? error.message : 'Something went wrong.');
+  toast.error(financeErrorMessage(error));
 }

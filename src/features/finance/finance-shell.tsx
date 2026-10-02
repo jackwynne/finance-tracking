@@ -1,13 +1,15 @@
 import {
   IconChartDonut,
   IconFileUpload,
-  IconLayoutDashboard,
   IconLoader2,
   IconLogout,
   IconPigMoney,
   IconReceipt2,
   IconUsers,
   IconWallet,
+  IconBook,
+  IconRefresh,
+  IconWorld,
 } from '@tabler/icons-react';
 import { Link, Outlet } from '@tanstack/react-router';
 import { useAuth } from '@workos/authkit-tanstack-react-start/client';
@@ -21,7 +23,10 @@ import { Toaster } from '@/components/ui/sonner';
 import { api } from '../../../convex/_generated/api';
 
 const navigation = [
-  { to: '/dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
+  { to: '/spending', label: 'Spending', icon: IconReceipt2 },
+  { to: '/exposure', label: 'Exposure', icon: IconWorld },
+  { to: '/updates', label: 'Updates', icon: IconRefresh },
+  { to: '/setup', label: 'Setup guide', icon: IconBook },
   { to: '/transactions', label: 'Transactions', icon: IconReceipt2 },
   { to: '/investments', label: 'Investments', icon: IconPigMoney },
   { to: '/counterparties', label: 'Counterparties', icon: IconUsers },

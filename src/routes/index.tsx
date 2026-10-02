@@ -7,7 +7,7 @@ export const Route = createFileRoute('/')({
   component: Welcome,
   loader: async () => {
     const { user } = await getAuth();
-    if (user) throw redirect({ to: '/dashboard', search: { from: undefined, to: undefined } });
+    if (user) throw redirect({ to: '/spending' });
   },
 });
 
@@ -23,7 +23,8 @@ function Welcome() {
         </div>
         <h1 className="font-heading text-4xl font-semibold tracking-tight sm:text-6xl">Know where your money goes.</h1>
         <p className="mx-auto mt-5 max-w-lg text-white/65">
-          Import your bank exports, classify merchants once, and see cash flow and net worth in one private workspace.
+          Review spending across New Zealand and Australia, see your total asset exposure, and use ChatGPT to prepare
+          updates.
         </p>
         <div className="mt-8 flex justify-center gap-3">
           <Button nativeButton={false} size="lg" render={<a href="/sign-in" />}>
