@@ -109,18 +109,43 @@ export const confirmAccount = mutation({
       throw new ConvexError('Wait for parsing to finish before confirming the account.');
     let accountId = args.accountId;
     if (accountId) {
-      assertOwner(await ctx.db.get('accounts', accountId), profile._id);
+      const account = assertOwner(await ctx.db.get('accounts', accountId), profile._id);
+      if (importJob.currency && account.currency !== importJob.currency)
+        throw new ConvexError('The statement currency does not match the selected account.');
+      if (
+        importJob.detectedSourceKeyHash &&
+        account.sourceKeyHash &&
+        account.sourceKeyHash !== importJob.detectedSourceKeyHash
+      )
+        throw new ConvexError('The statement identifies a different bank account. Choose its matching account.');
+      if (importJob.detectedSourceKeyHash && !account.sourceKeyHash)
+        await ctx.db.patch('accounts', account._id, { sourceKeyHash: importJob.detectedSourceKeyHash });
     } else if (args.createAccount) {
-      accountId = await ctx.db.insert('accounts', {
-        ownerId: profile._id,
-        name: args.createAccount.name.trim(),
-        type: args.createAccount.type,
-        institution: args.createAccount.institution?.trim() || undefined,
-        currency: importJob.currency ?? 'NZD',
-        mask: importJob.detectedMask ?? 'Account',
-        sourceKeyHash: importJob.detectedSourceKeyHash,
-        archived: false,
-      });
+      const existing = importJob.detectedSourceKeyHash
+        ? await ctx.db
+            .query('accounts')
+            .withIndex('by_ownerId_and_sourceKeyHash', (q) =>
+              q.eq('ownerId', profile._id).eq('sourceKeyHash', importJob.detectedSourceKeyHash),
+            )
+            // eslint-disable-next-line @convex-dev/no-filter-in-query -- Currency is part of the source identity and must be checked before limiting matches.
+            .filter((q) => q.eq(q.field('currency'), importJob.currency ?? 'NZD'))
+            .take(2)
+        : [];
+      if (existing.length > 1)
+        throw new ConvexError('Several accounts match this statement. Select the existing account explicitly.');
+      accountId = existing.at(0)?._id;
+      if (!accountId) {
+        accountId = await ctx.db.insert('accounts', {
+          ownerId: profile._id,
+          name: args.createAccount.name.trim(),
+          type: args.createAccount.type,
+          institution: args.createAccount.institution?.trim() || undefined,
+          currency: importJob.currency ?? 'NZD',
+          mask: importJob.detectedMask ?? 'Account',
+          sourceKeyHash: importJob.detectedSourceKeyHash,
+          archived: false,
+        });
+      }
     } else {
       throw new ConvexError('Choose an account or provide details for a new one.');
     }
