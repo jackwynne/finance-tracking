@@ -14,6 +14,8 @@ Convex agent skills for common tasks can be installed by running
 
 ## Project skills
 
+- Shared skills are in [.agents/skills](.agents/skills). Use the skill that fits the task and read only the supporting references it needs. This project's Convex guidance and development commands take precedence over skill examples.
+- For delegated workflows, read [.agents/pstack-models.md](.agents/pstack-models.md) and use the active runtime's supported tools and models. User-selected models take precedence.
 - Apply [TypeScript best practices](.agents/skills/typescript-best-practices/SKILL.md) when reading or editing TypeScript. Its supporting [type system discipline](.agents/skills/principle-type-system-discipline/SKILL.md) and [boundary discipline](.agents/skills/principle-boundary-discipline/SKILL.md) skills are included locally.
 - Apply [unslop](.agents/skills/unslop/SKILL.md) to app copy, documentation, and responses.
 - The transaction and portfolio review and implementation plan is in [docs/improvement-plan.html](docs/improvement-plan.html).

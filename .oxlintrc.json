@@ -11,6 +11,7 @@
     "builtin": true
   },
   "ignorePatterns": [
+    ".agents/skills/**",
     "**/.nx/**",
     "**/.svelte-kit/**",
     "**/build/**",

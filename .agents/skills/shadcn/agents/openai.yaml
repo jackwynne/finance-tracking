@@ -1,0 +1,5 @@
+interface:
+  display_name: Shadcn
+  short_description: Explicit shadcn component workflows.
+policy:
+  allow_implicit_invocation: false
