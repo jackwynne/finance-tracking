@@ -349,12 +349,14 @@
     <a class="skip-link" href="#plan">Skip to the plan</a>
     <header>
       <p class="name">Finance app improvement plan</p>
-      <p>Reviewed 30 September 2026 · Personal finance and investment tracking</p>
+      <p>Direction updated 2 October 2026 · Spending, total asset exposure and updates through ChatGPT</p>
     </header>
     <div class="layout">
       <nav aria-label="Plan sections">
         <h2>Contents</h2>
-        <a href="#portfolio-scope">Portfolio scope</a
+        <a href="#personal-app-direction">Personal app direction</a><a href="#chatgpt-connection">ChatGPT connection</a
+        ><a href="#your-accounts-and-holdings">Your accounts and holdings</a
+        ><a href="#portfolio-scope">Portfolio scope</a
         ><a href="#findings-in-the-current-app">Findings in the current app</a
         ><a href="#the-transaction-review-workflow">The transaction review workflow</a
         ><a href="#a-portfolio-model-that-supports-real-holdings">A portfolio model that supports real holdings</a
@@ -366,30 +368,452 @@
       <main id="plan">
         <h1 id="finance-app-review-and-improvement-plan">Finance app review and improvement plan</h1>
         <p>
-          Reviewed on 30 September 2026. The first release should make it easy for Codex to classify the full
-          transaction ledger, then show where the investment portfolio is actually invested. Keep Convex, TanStack Start
-          and the existing import staging. Redesign the finance model where needed, with fresh imports instead of legacy
-          compatibility code.
+          Direction updated on 2 October 2026 following the user's request. Build this personal app around two
+          questions: how much am I spending and broadly on what, and what is my exposure by country, industry and asset
+          class? ChatGPT outside the app should do much of the updating. Include all assets in the model. Keep Convex,
+          TanStack Start and the existing import staging. The earlier technical review below remains implementation
+          context.
         </p>
         <p>
-          The chosen classification workflow is a file exported from production and processed in Codex. Export,
-          validation, preview, apply and undo must work without editing transactions through the UI. An AI service
-          inside the app can wait.
+          Build one update service for validation, preview, apply and undo. Prove its contract through file updates,
+          then expose it through a personal MCP connection so routine ChatGPT updates do not require file round trips.
+          Codex can use the same contract through a CLI. Keep file download and upload as a fallback, without requiring
+          a terminal or individual transaction edits.
         </p>
         <aside class="note" aria-label="Recommended first deliverable">
           <strong>Start with transaction classification</strong>
           <p>
-            Fix the financial rules, then build the production file export, Codex review and bulk apply workflow. Add
-            portfolio positions and fund breakdowns after that.
+            Fix the spending rules and build ChatGPT export, review and bulk apply. Then record current asset balances
+            and add country, industry and asset-class breakdowns. Use a shared update contract for both areas.
           </p>
         </aside>
+        <h2 id="personal-app-direction">Personal app direction</h2>
+        <p>
+          Use three main destinations: Spending, Exposure and Updates. Transactions, merchants, accounts and source
+          files become supporting detail. Keep setup small and specific to ANZ, CommBank, Smart, Simplicity and
+          Hostplus. A personal category catalogue and reusable rules are more useful here than a large generic budgeting
+          system.
+        </p>
+        <h3>Spending</h3>
+        <p>
+          Start with this month's spending, the previous comparable period, a monthly trend and broad category bars.
+          Suggested groups are housing and bills, groceries, eating out, transport, shopping, health, travel and other.
+          ChatGPT can propose changes to these groups. Clicking a group opens its transactions. Keep unclassified
+          spending visible as an amount and count rather than hiding it from the total.
+        </p>
+        <p>
+          Import both bank accounts in their original currencies. Offer a combined NZD view initially, with an AUD
+          reporting option and original amounts in transaction detail. Store dated FX rates and identify missing
+          conversions. Compare month-to-date with the same elapsed portion of the previous month. A partial account
+          import must show its coverage dates so a lower total is not mistaken for lower spending.
+        </p>
+        <p>
+          Movement between ANZ and CommBank is a transfer even when the amounts differ after conversion. Store both legs
+          and the conversion evidence; any identifiable fee is spending. Investment contributions and debt principal
+          payments are separate movements. Refunds offset spending, reimbursements need an explicit treatment, and loan
+          interest remains spending. Do not classify every outgoing payment as consumption.
+        </p>
+        <h3>Exposure</h3>
+        <p>
+          Start with total recorded assets, liabilities, net worth and accessible versus retirement balances. Follow
+          with country, industry and asset-class breakdowns, then holdings and their sources. Default allocation
+          percentages use recorded gross asset value, with debts shown alongside it. A net-worth denominator can be
+          misleading for allocation, especially with borrowing. Filters for all assets, investments and retirement
+          should state their denominator.
+        </p>
+        <p>
+          Treat KiwiSaver and super as account restrictions, not asset classes. Break them into their actual underlying
+          shares, bonds, property and cash when supported by dated disclosures. Cash remains cash; an industry view
+          keeps non-industry assets in an explicit not-applicable bucket. Country initially means the provider's country
+          classification for investments and bank jurisdiction for deposits. Label that basis and keep currency exposure
+          separate. Do not claim revenue geography from company domicile.
+        </p>
+        <p>
+          Support manual dated balances for property, other assets and debts if present, without assuming the user owns
+          them. Record ownership share and valuation source. The full model includes these categories even though the
+          supplied inventory currently confirms only bank cash, ETFs and retirement funds. Unknown balances and
+          unresolved fund weights remain visible. Coverage is measured separately for country, industry and asset class,
+          against the full recorded asset value, not just the portion successfully classified.
+        </p>
+        <h3>Read-only bank feeds</h3>
+        <p>
+          Prefer automatic read-only bank feeds where a suitable personal connection is available, with exports as a
+          fallback. ANZ supports consented sharing of balances and transaction history, with approval and revocation
+          through goMoney. Its direct access is limited to ANZ-approved or MBIE-accredited third parties. These facts
+          were checked against <a href="https://www.anz.co.nz/comms/anz-data-sharing/">ANZ Data Sharing</a> on 2 October
+          2026. An intermediary is a more practical starting point than seeking accreditation for this app.
+        </p>
+        <p>
+          The user selected Akahu for the initial ANZ connection on 2 October 2026. Use its
+          <a href="https://developers.akahu.nz/docs/personal-apps">personal API</a>. The personal tier is free and
+          limited to the user's own account. It supports account information and daily refresh, and excludes payments
+          and webhooks. Akahu's
+          <a href="https://developers.akahu.nz/docs/official-open-banking">official open banking documentation</a>
+          describes bank-side authorisation without credential sharing, but also says it retains classic integrations.
+          Confirm that official ANZ connectivity is enabled for the personal app before linking the account. If it is
+          unavailable, retain bank exports and revisit the provider choice. Read-only access in Koru alone is
+          insufficient if the upstream connection requires broader account access.
+        </p>
+        <p>
+          <a href="https://www.commbank.com.au/banking/open-banking.html"
+            >CommBank supports Australian CDR data sharing</a
+          >
+          through accredited recipients and providers collecting data through them. Assess an Australian intermediary
+          separately; the NZ connection must not be assumed to cover CommBank. Keep its export workflow until an
+          eligible provider and personal-use terms are verified. No provider account has been created or linked.
+        </p>
+        <p>
+          Bank-feed credentials stay on the app server and grant account-data access only. ChatGPT receives selected
+          records from Koru, not bank credentials or bank access tokens. Do not request payment consent or implement
+          payment endpoints. Imported feeds and exports use the same source-aware deduplication and reporting rules.
+          Show the last successful sync, consent status and covered transaction dates; a failed sync preserves stored
+          data.
+        </p>
+        <h3>Akahu implementation steps</h3>
+        <ol>
+          <li>
+            Confirm personal-tier eligibility and official ANZ connectivity. Set up the user's personal Akahu app with
+            account-information access only. Complete bank consent in goMoney. No payment permission is required.
+          </li>
+          <li>
+            Store the Akahu app and user tokens in server-side secrets. Bind the connection to the authenticated
+            profile. Keep tokens out of browser responses, ChatGPT exports and logs.
+          </li>
+          <li>
+            Import ANZ accounts, dated balances and all available transaction pages through a server-side job. Match the
+            feed to the existing ANZ account before creating another account. Retain provider IDs and source evidence.
+            Reconcile overlap with earlier file imports so the same transaction is counted once.
+          </li>
+          <li>
+            Schedule a daily sync and add a manual refresh that respects Akahu's documented one-hour rest period. Use
+            polling because personal apps have no webhooks. Keep sync progress on the server and make retries safe after
+            interruption. Preserve accepted classifications when bank data is refreshed.
+          </li>
+          <li>
+            Show connection status, last successful sync, history coverage and errors in Updates. Provide a disconnect
+            control and handle external revocation. Keep statement imports available for missing history and CommBank.
+          </li>
+        </ol>
+        <p>
+          Complete the first connection when the imported ANZ balance and sample transactions reconcile to bank
+          evidence, all available pages are read, and repeat syncs or overlapping exports create no duplicates. Verify
+          that revocation stops new imports, failures preserve existing records, and no credential appears in client
+          responses or update packs. This is a planned integration; no Akahu account or bank connection has been
+          configured in this task.
+        </p>
+        <h3>Files, emails and statements</h3>
+        <p>
+          The user does not want ChatGPT to access any part of a bank or investment account that can make transactions.
+          Use copies of bank exports, statements and the monthly email reporting new share purchases. No bank or broker
+          login is needed. Any future direct connection is to this app's record-keeping functions only, with no trading,
+          payment or withdrawal capability. Public fund disclosures are a separate read-only data source.
+        </p>
+        <ol>
+          <li>
+            Download a task-specific update pack with personal category definitions, confirmed merchant rules, relevant
+            records, stable IDs and instructions. Include only the context needed for the task.
+          </li>
+          <li>
+            Give ChatGPT the pack and new bank exports, purchase emails, statements or fund disclosures. Ask it to
+            classify spending, extract dated holdings and balances, or prepare a sourced fund breakdown. It returns a
+            changes file and questions for items it cannot resolve.
+          </li>
+          <li>
+            Upload the changes file. The app shows before/after amounts, affected records, stale revisions, duplicate
+            proposals and unresolved items. Apply the reviewed changes as one recorded job with undo.
+          </li>
+          <li>
+            Reuse accepted rules next time. Future update packs focus on new activity and exceptions, with a full-ledger
+            export available for broader review. Public fund sources can later refresh through provider adapters.
+          </li>
+        </ol>
+        <h3>The monthly routine</h3>
+        <ul>
+          <li>
+            Sync bank activity through verified read-only feeds where available; otherwise download ANZ and CommBank
+            exports. Use confirmed merchant rules first and ask ChatGPT about exceptions. Show each account's covered
+            dates and any missing FX rates.
+          </li>
+          <li>
+            Supply a copy of the share-purchase email as saved email, PDF, pasted text or a screenshot. Preserve its
+            source and let ChatGPT extract the purchase date, fund identity, units, currency, amount and any stated fees
+            or reference. Only populate fields actually present. Ask for missing information if it affects holdings.
+          </li>
+          <li>
+            Review one update summary, then apply it. Match purchase references and retained source hashes where
+            available. Cross-source duplicates, such as the same purchase in an email and a later CSV, require matching
+            by account, instrument, date, units and amount. Link supporting evidence instead of adding a second
+            purchase.
+          </li>
+          <li>
+            Use occasional dated statements to reconcile holdings and update KiwiSaver, Hostplus and bank balances. Add
+            new purchases to the latest verified position snapshot. A purchase amount is not a current valuation; dated
+            prices and fund disclosures refresh value and exposure separately.
+          </li>
+        </ul>
+        <p>
+          The email's exact fields and format have not been inspected. Start with user-supplied copies rather than
+          mailbox access. Email-only activity may miss sales, fees, reinvestments, switches or corporate actions, so
+          show the last reconciliation date and unresolved differences. A manually supplied email should be enough to
+          prepare a draft; it should not imply that a complete holdings history has been recovered.
+        </p>
+        <p>
+          ChatGPT should prepare structured proposals; deterministic app code calculates money, FX and allocations. The
+          update contract should support transaction classification, explicit reporting treatment, statement balances,
+          position snapshots and dated fund allocations. Each change references its source, record revision and scope.
+          Missing dates, ambiguous currencies and incomplete extracts become questions rather than invented values. A
+          screenshot can start a draft, but a dated statement is the reconciliation source.
+        </p>
+        <p>
+          A personal custom GPT with
+          <a href="https://developers.openai.com/api/docs/actions/introduction">GPT Actions</a>
+          is an alternative REST-based connection if MCP is unavailable on the user's account. Prefer the MCP route
+          below and avoid maintaining both integrations initially. No direct connection is implemented.
+        </p>
+        <h2 id="chatgpt-connection">ChatGPT connection</h2>
+        <p>
+          Add a personal Koru plugin backed by an MCP server and a finance workflow skill. MCP supplies live records and
+          controlled app actions; the skill tells ChatGPT how to use them for this user's routine. Focus the first
+          connection on spending review, purchase-email updates and exposure questions. A ChatGPT widget can wait until
+          the tools work well on their own.
+        </p>
+        <p>
+          The official OpenAI documentation checked on 2 October 2026 describes
+          <a href="https://developers.openai.com/plugins/build/mcp-server">MCP servers for plugins</a> and
+          <a href="https://developers.openai.com/plugins/build/skills">skills that teach repeatable tool workflows</a>.
+          Use a personal developer-mode connection first. The
+          <a href="https://developers.openai.com/plugins/deploy/connect-chatgpt">connection guide</a> supports a public
+          HTTPS endpoint or Secure MCP Tunnel for a private server. Developer-mode availability depends on account and
+          workspace policy. Confirm availability before implementing the connection; public directory submission is
+          outside this personal project's scope.
+        </p>
+        <h3>What the user can ask</h3>
+        <ul>
+          <li>"Categorise the spending imported since my last review. Ask me about anything ambiguous."</li>
+          <li>"Treat this merchant as groceries from now on, but keep my earlier manual corrections."</li>
+          <li>"Update my holdings from this month's purchase email and show the changes."</li>
+          <li>"How much did I spend in September across ANZ and CommBank, in NZD?"</li>
+          <li>"What percentage of all my recorded assets is exposed to the US and to technology?"</li>
+          <li>"Which balances or fund breakdowns need updating before I can trust that figure?"</li>
+          <li>"Undo the last update from ChatGPT."</li>
+        </ul>
+        <h3>A small set of app tools</h3>
+        <p>
+          Define stable tool names, validated inputs and structured outputs. Each tool serves a user task rather than
+          exposing raw database operations. These names are proposed contracts, not existing endpoints.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Tool</th>
+                <th scope="col">Purpose and contract</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Tool"><code>get_review_context</code></td>
+                <td data-label="Purpose and contract">
+                  Return the authenticated profile, reporting preferences, category definitions, confirmed rules,
+                  account and instrument IDs, last review and data freshness. Include a context version so proposals
+                  identify the rules they used.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tool"><code>list_transactions</code></td>
+                <td data-label="Purpose and contract">
+                  Filter by date, account, merchant and review state. Return a bounded page with stable IDs, revisions,
+                  original amounts, classification evidence and a continuation cursor. State whether more records
+                  remain.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tool"><code>get_spending_summary</code></td>
+                <td data-label="Purpose and contract">
+                  Calculate the selected period and comparison in the app, including broad categories, unclassified
+                  amounts, FX dates and account coverage. Never infer a full-period total from one transaction page.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tool"><code>get_exposure_summary</code></td>
+                <td data-label="Purpose and contract">
+                  Calculate country, industry or asset-class allocation for a specified asset scope and reporting
+                  currency. Return the denominator, source dates, unresolved values and contributing holdings. Link
+                  detail to owned source records.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tool"><code>get_record_evidence</code></td>
+                <td data-label="Purpose and contract">
+                  Fetch selected owned transactions, holdings or source excerpts by returned IDs. Keep results bounded
+                  and omit credentials and unnecessary account identifiers.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tool"><code>stage_updates</code></td>
+                <td data-label="Purpose and contract">
+                  Accept typed classification, rule, reporting-treatment, purchase, position or sourced allocation
+                  proposals with revisions and an idempotency key. Save a draft job and unresolved questions. Do not
+                  change accepted records.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tool"><code>preview_updates</code></td>
+                <td data-label="Purpose and contract">
+                  Validate a draft job and return exact before/after changes, reporting effects, conflicts, counts and a
+                  preview ID bound to the draft revision and content hash. Provide a Koru review link.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tool"><code>apply_updates</code></td>
+                <td data-label="Purpose and contract">
+                  Apply an authorized preview by its ID and hash, with an idempotency key. Recheck record revisions and
+                  return a durable job ID and receipt. Retrying the same request returns the same job.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tool"><code>get_update_job</code></td>
+                <td data-label="Purpose and contract">
+                  Return progress, accepted and rejected counts, unresolved questions, source references and the undo
+                  reference. ChatGPT can resume an interrupted conversation using the job ID.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Tool"><code>undo_updates</code></td>
+                <td data-label="Purpose and contract">
+                  Restore a selected job's previous values where subsequent edits do not conflict. Return restored and
+                  conflicted records, with a receipt. Undo changes Koru records only.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <h3>Keep the connection scoped to Koru</h3>
+        <p>
+          Use the <a href="https://developers.openai.com/plugins/build/auth">documented OAuth 2.1 authorization flow</a>
+          for private records. First verify whether the existing WorkOS setup can issue the required MCP tokens and
+          discovery metadata. Map the validated identity to the same Koru profile; browser login alone does not
+          establish MCP authorization. Derive ownership on the server and check it on every tool call.
+        </p>
+        <p>
+          Separate read, proposal and apply permissions. Mark draft creation, apply and undo as writes, and mark only
+          side-effect-free tools as reads. Start with reads and proposals, then enable apply once the review workflow
+          works. Before applying a batch, present its exact preview and obtain authorization through a supported client
+          confirmation or the Koru review screen. Bind approval to that preview; a model-supplied approval flag is not
+          authorization. Review a batch once rather than asking about every classified transaction.
+        </p>
+        <p>
+          MCP calls the same owner-scoped service used by the app, file workflow and CLI. Keep validation, calculations,
+          durable jobs and undo in that service. Akahu sync remains a separate server-side process. The MCP server never
+          returns Akahu tokens and has no payment, trade, arbitrary SQL, shell or arbitrary URL-fetch tools. Retain
+          actor, source, timestamp and before/after values for each accepted change.
+        </p>
+        <h3>Teach ChatGPT the routine</h3>
+        <p>
+          Package a small finance workflow skill with examples for spending review, merchant corrections and purchase
+          emails. Fetch current context at the start; do not rely on chat memory for categories or balances. Apply
+          confirmed rules first, preserve manual exceptions and ask one specific question for each unresolved item.
+          Money is serialized as decimal minor-unit strings, and units, prices and weights as exact decimal strings. The
+          app computes totals and allocation rather than asking ChatGPT to reproduce the arithmetic.
+        </p>
+        <p>
+          Treat bank descriptions, emails and disclosures as evidence, not instructions. A purchase email supplies
+          activity, not a current valuation. Do not assume chat attachments automatically reach the MCP server.
+          Initially retain originals through an upload to Koru and reference the returned source ID in proposals. Add
+          direct file handoff only after verifying client support and preserving the original source. Mailbox access is
+          optional future work, not a requirement for the connection.
+        </p>
+        <h3>Prove the connection with real requests</h3>
+        <p>
+          Test initialization, tool schemas and authorization in MCP Inspector, then test the example requests in the
+          user's actual ChatGPT account. Use an isolated dataset first. Verify pagination, duplicate purchase evidence,
+          repeat apply, stale previews, interrupted jobs, undo conflicts and expired tokens. Requests to move money or
+          reveal credentials must have no available capability. Compare spending and exposure results with Koru and
+          independently calculated fixtures. Record which tests used fixtures and which used the signed-in connection.
+        </p>
+        <p>
+          Deliver in order: confirm ChatGPT connection and auth support; implement the shared update contract and file
+          fallback; expose read and proposal tools; enable reviewed apply and undo; package the workflow skill. Complete
+          the spending workflow before expanding the same contract to purchase emails and fund exposure. No MCP server
+          or plugin has been built or connected as part of this plan update.
+        </p>
+        <h2 id="your-accounts-and-holdings">Your accounts and holdings</h2>
+        <p>
+          The user confirmed an ANZ account in New Zealand and a Commonwealth Bank account in Australia. Their balances
+          are not supplied. The attached holdings screenshot supplies the reference inventory below, with no valuation
+          date. These figures have not been imported into the database or verified against statements.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Holding</th>
+                <th scope="col">Units</th>
+                <th scope="col">Displayed value</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Holding">Smart US Large Growth ETF, USG</td>
+                <td data-label="Units">13,342</td>
+                <td data-label="Displayed value">NZ$233,711.81</td>
+              </tr>
+              <tr>
+                <td data-label="Holding">Simplicity KiwiSaver High Growth, 25641</td>
+                <td data-label="Units">51,720.1104</td>
+                <td data-label="Displayed value">NZ$85,746.77</td>
+              </tr>
+              <tr>
+                <td data-label="Holding">Smart US Technology NZD Hedged ETF, UST</td>
+                <td data-label="Units">281</td>
+                <td data-label="Displayed value">NZ$1,081.29</td>
+              </tr>
+              <tr>
+                <td data-label="Holding">Smart Europe ETF, EUF</td>
+                <td data-label="Units">2,298</td>
+                <td data-label="Displayed value">NZ$7,146.78</td>
+              </tr>
+              <tr>
+                <td data-label="Holding">Smart Total World ETF, TWF</td>
+                <td data-label="Units">482</td>
+                <td data-label="Displayed value">NZ$2,612.44</td>
+              </tr>
+              <tr>
+                <td data-label="Holding">Hostplus Indexed High Growth, HPIHG</td>
+                <td data-label="Units">2,064.048</td>
+                <td data-label="Displayed value">$3,816.00, included in screenshot NZD total; confirm conversion</td>
+              </tr>
+              <tr>
+                <td data-label="Holding">Simplicity KiwiSaver Growth, 24053</td>
+                <td data-label="Units">0</td>
+                <td data-label="Displayed value">NZ$0.00; retain as historical</td>
+              </tr>
+              <tr>
+                <td data-label="Holding">Smart NZ Mid Cap ETF, MDZ</td>
+                <td data-label="Units">4,270</td>
+                <td data-label="Displayed value">NZ$24,872.75</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          The displayed values sum to NZ$358,987.84, matching the screenshot total. USG is 65.1% of that displayed
+          holdings total, before either bank balance or any other assets. This is fund concentration, not a verified
+          country or industry allocation. The screenshot's gains and losses sections group holding values; their totals
+          must not be stored as realized gains or losses.
+        </p>
+        <p>
+          Hostplus shows an AU$1.50 unit price, which gives about AU$3,096.07 at the displayed units. The $3,816.00
+          value appears within an NZD total, but the conversion rate and date are absent. Preserve both the raw
+          screenshot evidence and this ambiguity until a statement confirms the native balance. Displayed prices may be
+          rounded; do not replace the screenshot's other reported values with recomputed units times rounded prices.
+        </p>
         <h2 id="portfolio-scope">Portfolio scope</h2>
         <p>
-          The supplied screenshot identifies Smart USG, UST, EUF, TWF and MDZ, Simplicity KiwiSaver High Growth,
-          Simplicity KiwiSaver Growth, and Hostplus Indexed High Growth. The user confirmed High Growth is the current
-          KiwiSaver fund and that Vanguard investments are held through Smart. Treat the Growth entry as a separate
-          instrument and possible historical holding until a current statement confirms its balance. The screenshot
-          supplies identities, not units or current valuations.
+          The latest screenshot identifies Smart USG, UST, EUF, TWF and MDZ, Simplicity KiwiSaver High Growth,
+          Simplicity KiwiSaver Growth, and Hostplus Indexed High Growth, with the units and displayed values recorded
+          above. High Growth is the nonzero KiwiSaver holding; Growth has zero units in this screenshot and remains
+          historical. Provider identifiers and current valuations still need reconciliation to dated sources.
         </p>
         <p>
           Include Hostplus in the portfolio model and support an AUD statement balance from the start. Automate its
@@ -582,8 +1006,9 @@
         </p>
         <h2 id="the-transaction-review-workflow">The transaction review workflow</h2>
         <p>
-          The main workflow is production export, Codex review, file validation and bulk apply. The UI can show results,
-          but it must not be required to classify each row.
+          The shared workflow is context, proposals, validation, preview, apply and undo. The personal MCP connection is
+          the intended routine interface. The file workflow below proves the same contract and remains a fallback for
+          ChatGPT or Codex. Neither route requires individual transaction edits in the UI.
         </p>
         <ol>
           <li>
@@ -966,24 +1391,32 @@
               <tr>
                 <td data-label="Slice">2</td>
                 <td data-label="Work">
-                  Implement the production review bundle, authenticated export/validate/dry-run/apply/undo CLI, durable
-                  jobs and classification skill. Add a review queue as a convenience.
+                  Implement ChatGPT update packs, download/upload, preview/apply/undo and durable jobs. Include category
+                  definitions and confirmed rules. Support Codex through an authenticated
+                  export/validate/dry-run/apply/undo CLI using the same service. Add the selected Akahu ANZ feed with
+                  daily sync and file-import reconciliation. Expose spending reads and the shared update service through
+                  a personal MCP connection with a workflow skill. Add a review queue for exceptions.
                 </td>
                 <td data-label="Done when">
-                  A production ledger can be exported in chunks, classified in Codex, reviewed as files and applied
-                  without individual UI edits or lost manual decisions. Retries and an interrupted batch do not
-                  duplicate changes. Every unresolved transaction remains visible.
+                  A ledger can be exported in chunks, classified in ChatGPT, reviewed and applied without individual UI
+                  edits or lost manual decisions. Retries and an interrupted batch do not duplicate changes. Every
+                  unresolved transaction remains visible. The Akahu feed reconciles to ANZ evidence, preserves
+                  classifications and handles revoked consent. CommBank remains supported through exports. ChatGPT can
+                  read spending, stage a classification batch, preview, apply and undo through the authenticated
+                  connection without a file round trip.
                 </td>
               </tr>
               <tr>
                 <td data-label="Slice">3</td>
                 <td data-label="Work">
-                  Add instrument identity, statement/opening positions, fund-switch mapping, exact calculations, manual
-                  prices and AUD/NZD valuation.
+                  Add instrument identity, dated balances for all assets and debts, statement/opening positions,
+                  purchase-email proposals, fund-switch mapping, exact calculations, manual prices and AUD/NZD
+                  valuation.
                 </td>
                 <td data-label="Done when">
-                  Smart and KiwiSaver positions reconcile to statements. Hostplus can be recorded. Partial history and
-                  unknown values are shown clearly. Net worth includes the portfolio once.
+                  Both bank balances, Smart, KiwiSaver and Hostplus can be recorded and reconciled. An email purchase
+                  advances a verified position once, including when later repeated in a CSV. Partial history and unknown
+                  values are shown clearly. Other assets and debts can be added. Net worth includes each asset once.
                 </td>
               </tr>
               <tr>
@@ -1027,15 +1460,21 @@
           do not prove live downloads or signed-in workflows.
         </p>
         <p>
-          Retain ownership checks and authentication. Use fresh imports for the redesigned schema; no legacy adapters or
-          historical-data migration is required. Do not reset the current deployment as part of this planning task.
-          Document the later reset/reimport procedure before running it.
+          Retain ownership checks and authentication. Decide the migration approach against the actual stored data when
+          implementing the model. This direction update does not authorize a reset or discard existing classifications.
+          Preserve source records and document any required reimport before changing the current deployment.
         </p>
         <p>
           Defer in-app AI, live trading, bank credential aggregation, tax filing, advanced return attribution and a
           broad cosmetic redesign. They do not unlock the selected workflow.
         </p>
         <h2 id="review-verification-and-remaining-limits">Review verification and remaining limits</h2>
+        <p>
+          On 2 October 2026, the direction update reviewed the current schema, dashboard, investment activity screen and
+          classification file parser. The screenshot's value sum and USG weight were checked with decimal arithmetic.
+          The local app at port 3010 was unavailable, so no new signed-in app QA or financial-record update occurred.
+          Verification entries below describe the earlier 30 September review and have not been rerun for app behavior.
+        </p>
         <ul>
           <li>
             <code>pnpm test</code> passed 12 tests, with 2 skipped across 4 test files. The optional local-export tests
@@ -1069,8 +1508,8 @@
           </li>
         </ul>
         <p>
-          The first implementation deliverable should be slices 1 and 2. They directly solve the classification problem
-          and produce a review bundle Codex can process before the portfolio work expands.
+          The first implementation deliverable should be slices 1 and 2. They solve the classification problem, connect
+          the ANZ feed and provide ChatGPT with spending review tools before the portfolio work expands.
         </p>
         <p>
           Include the rollback fix in slice 1. Its regression check must import more than one batch, roll back every
