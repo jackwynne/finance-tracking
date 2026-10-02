@@ -13,6 +13,8 @@ export function PortfolioPerformance({ asOf, currency }: { asOf: string; currenc
   const [priceSourceConfirmed, setPriceSourceConfirmed] = useState<boolean | undefined>();
   const selected =
     accountId ??
+    options?.accounts.find((account) => account.performancePositionId && account.currency === currency)?.id ??
+    options?.accounts.find((account) => account.performancePositionId)?.id ??
     options?.accounts.find((account) => /simplicity/i.test(account.name))?.id ??
     options?.accounts.at(0)?.id;
   const selectedAccount = options?.accounts.find((account) => account.id === selected);
@@ -29,6 +31,9 @@ export function PortfolioPerformance({ asOf, currency }: { asOf: string; currenc
   const formatValue = (value: number) =>
     new Intl.NumberFormat('en-NZ', { style: 'currency', currency, maximumFractionDigits: 0 }).format(value);
   const visible = history?.observations.filter((row) => row.value !== null) ?? [];
+  const latest = visible.at(-1);
+  const formatExact = (value: number) =>
+    `${currency} ${new Intl.NumberFormat('en-NZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}`;
   return (
     <section className="rounded-lg border bg-card p-4 space-y-3">
       <div>
@@ -151,6 +156,23 @@ export function PortfolioPerformance({ asOf, currency }: { asOf: string; currenc
             <p className="font-medium">
               {history.totalsAvailable ? formatValue(Number(history.withdrawals)) : 'Unavailable'}
             </p>
+          </div>
+        </div>
+      )}
+      {latest && latest.value !== null && history?.totalsAvailable && (
+        <div className="rounded border bg-muted/30 p-3 text-sm">
+          <p className="mb-2 text-muted-foreground">Recorded value at {latest.date}</p>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div>
+              Investment value<p className="font-medium">{formatExact(Number(latest.value))}</p>
+            </div>
+            <div>
+              Opening value and net contributions<p className="font-medium">{formatExact(Number(latest.capital))}</p>
+            </div>
+            <div>
+              Growth after costs
+              <p className="font-medium">{formatExact(Number(latest.value) - Number(latest.capital))}</p>
+            </div>
           </div>
         </div>
       )}
