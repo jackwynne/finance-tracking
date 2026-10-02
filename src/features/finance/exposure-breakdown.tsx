@@ -151,7 +151,7 @@ export function ExposureBreakdown({
           </p>
           <p className="mb-3 text-xs text-muted-foreground">
             {percentBasis === 'disclosed'
-              ? 'Percentages divide by the sum of attributed amounts, including enabled assumptions. Remaining unknown exposure is excluded. This is not an equity-only country estimate.'
+              ? 'Percentages divide by the sum of attributed amounts, including enabled assumptions. Remaining unknown exposure is excluded. Separate country, industry and asset class disclosures do not establish their intersections.'
               : 'Percentages divide by all selected gross assets, including fund cash and other assets. Partial disclosures leave some of that value unattributed.'}
           </p>
           {decimal(group.assumedValue) > 0n && (

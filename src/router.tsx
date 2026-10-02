@@ -6,9 +6,25 @@ import { AuthKitProvider, useAccessToken, useAuth } from '@workos/authkit-tansta
 import { ConvexProviderWithAuth, ConvexReactClient } from 'convex/react';
 import { useCallback, useMemo } from 'react';
 
+import { installStaleAssetRecovery } from './lib/stale-asset-recovery';
 import { routeTree } from './routeTree.gen';
 
+let assetRecoveryInstalled = false;
+
 export function getRouter() {
+  if (!import.meta.env.SSR && !assetRecoveryInstalled) {
+    assetRecoveryInstalled = true;
+    try {
+      installStaleAssetRecovery({
+        events: window,
+        storage: window.sessionStorage,
+        version: import.meta.url,
+        reload: () => window.location.reload(),
+      });
+    } catch {
+      // A browser that blocks session storage keeps the original import error visible.
+    }
+  }
   const CONVEX_URL = import.meta.env.VITE_CONVEX_URL;
   if (!CONVEX_URL) {
     throw new Error('missing VITE_CONVEX_URL env var');
