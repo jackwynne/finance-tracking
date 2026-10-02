@@ -43,7 +43,13 @@ export const connectionTables = {
     description: v.string(),
     normalizedDescription: v.string(),
     sourceJson: v.string(),
-    state: v.union(v.literal('active'), v.literal('possibleDuplicate'), v.literal('missing')),
+    state: v.union(
+      v.literal('active'),
+      v.literal('possibleDuplicate'),
+      v.literal('pendingCorrection'),
+      v.literal('missing'),
+      v.literal('removed'),
+    ),
     lastSeenRunId: v.id('akahuSyncRuns'),
   })
     .index('by_ownerId_and_providerTransactionId', ['ownerId', 'providerTransactionId'])

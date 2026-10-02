@@ -1,6 +1,8 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { portfolioGroup, portfolioRestore } from './lib/updatePortfolio';
+
 export const reportingTreatment = v.union(
   ...(['expense', 'income', 'investment', 'debtPrincipal', 'refund', 'transfer'] as const).map((value) =>
     v.literal(value),
@@ -21,7 +23,7 @@ export const transactionEdit = v.object({
   splits: v.optional(v.array(splitPart)),
   notes: v.optional(v.string()),
 });
-export const updateGroup = v.union(
+export const transactionUpdateGroup = v.union(
   v.object({ kind: v.literal('transactions'), edits: v.array(transactionEdit), reason: v.string() }),
   v.object({ kind: v.literal('transfer'), edits: v.array(transactionEdit), reason: v.string() }),
   v.object({
@@ -32,6 +34,7 @@ export const updateGroup = v.union(
     reason: v.string(),
   }),
 );
+export const updateGroup = v.union(transactionUpdateGroup, portfolioGroup);
 export const updateTables = {
   updateEvidence: defineTable({
     ownerId: v.id('profiles'),
@@ -41,7 +44,9 @@ export const updateTables = {
     sha256: v.string(),
     size: v.number(),
     createdAt: v.number(),
-  }).index('by_ownerId_and_sha256', ['ownerId', 'sha256']),
+  })
+    .index('by_ownerId_and_sha256', ['ownerId', 'sha256'])
+    .index('by_ownerId_and_createdAt', ['ownerId', 'createdAt']),
   transactionSplits: defineTable({
     ownerId: v.id('profiles'),
     transactionId: v.id('transactions'),
@@ -86,12 +91,15 @@ export const updateTables = {
         defaultCategoryId: v.optional(v.id('categories')),
       }),
     ),
-    createdLinks: v.optional(v.array(v.id('transactionLinks'))),
+    portfolioReceipt: v.optional(v.array(portfolioRestore)),
+    createdLinks: v.optional(v.array(v.object({ id: v.id('transactionLinks'), revision: v.string() }))),
     restoreSplits: v.array(v.object({ transactionId: v.id('transactions'), parts: v.array(splitPart) })),
     afterJson: v.optional(v.string()),
     createdAt: v.number(),
     reviewedHash: v.optional(v.string()),
     reviewedAt: v.optional(v.number()),
+    reviewedUndoHash: v.optional(v.string()),
+    reviewedUndoAt: v.optional(v.number()),
     appliedAt: v.optional(v.number()),
     undoneAt: v.optional(v.number()),
   })

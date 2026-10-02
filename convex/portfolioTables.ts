@@ -12,6 +12,7 @@ export const portfolioTables = {
     currency: v.string(),
     retirement: v.boolean(),
     debt: v.boolean(),
+    ownershipShare: v.optional(v.string()),
     snapshotDate: v.string(),
     basis: v.union(v.literal('trade'), v.literal('settlement')),
     sameDayCovered: v.boolean(),
@@ -23,6 +24,7 @@ export const portfolioTables = {
   portfolioSnapshots: defineTable({
     ownerId: v.id('profiles'),
     positionId: v.id('portfolioPositions'),
+    ownershipShare: v.optional(v.string()),
     snapshotDate: v.string(),
     basis: v.union(v.literal('trade'), v.literal('settlement')),
     sameDayCovered: v.boolean(),
