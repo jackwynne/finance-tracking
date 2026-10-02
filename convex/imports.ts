@@ -497,7 +497,14 @@ export const rollbackBatch = internalMutation({
         // eslint-disable-next-line @convex-dev/no-filter-in-query -- Residual predicates must run before the page or batch limit.
         .filter((q) => q.and(q.neq(q.field('_id'), source._id), q.eq(q.field('voided'), false)))
         .take(1);
-      if (!otherSources.length) await ctx.db.patch('transactions', source.transactionId, { voided: true });
+      const activeBankEvidence = await ctx.db
+        .query('akahuEvidence')
+        .withIndex('by_transactionId', (q) => q.eq('transactionId', source.transactionId))
+        // eslint-disable-next-line @convex-dev/no-filter-in-query -- Only active provider evidence can keep the transaction recorded.
+        .filter((q) => q.eq(q.field('state'), 'active'))
+        .take(1);
+      if (!otherSources.length && !activeBankEvidence.length)
+        await ctx.db.patch('transactions', source.transactionId, { voided: true });
     }
     if (sources.length) {
       await ctx.scheduler.runAfter(0, internal.imports.rollbackBatch, { importId: importJob._id });

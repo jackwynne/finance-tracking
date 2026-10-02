@@ -270,3 +270,82 @@ test('unclassified merchant propagation recognizes Uncategorized and preserves m
     categoryProvenance: 'manual',
   });
 });
+
+test('rolling back a file preserves transactions backed by active Akahu evidence', async () => {
+  vi.useFakeTimers();
+  try {
+    const { t, owner, profile, accountId, importId } = await setup();
+    const importedTransactionId = await owner.run(async (ctx) => {
+      const transactionId = await ctx.db.insert('transactions', {
+        ownerId: profile._id,
+        accountId,
+        postedDate: '2026-10-01',
+        amountMinor: -100n,
+        currency: 'NZD',
+        rawDescription: 'Shop',
+        normalizedDescription: 'shop',
+        excluded: false,
+        voided: false,
+        reportingKind: 'standard',
+        createdByImportId: importId,
+      });
+      const importRowId = await ctx.db.insert('importRows', {
+        ownerId: profile._id,
+        importId,
+        rowNumber: 0,
+        status: 'committed',
+        format: 'ofx',
+        dedupeKey: 'provider-backed',
+        postedDate: '2026-10-01',
+        amountMinor: -100n,
+        currency: 'NZD',
+        rawDescription: 'Shop',
+        normalizedDescription: 'shop',
+        sourceJson: '{}',
+        transactionId,
+      });
+      await ctx.db.insert('transactionSources', {
+        ownerId: profile._id,
+        importId,
+        importRowId,
+        transactionId,
+        format: 'ofx',
+        dedupeKey: 'provider-backed',
+        sourceJson: '{}',
+        voided: false,
+      });
+      const runId = await ctx.db.insert('akahuSyncRuns', {
+        ownerId: profile._id,
+        status: 'complete',
+        startedAt: 1,
+        completedAt: 2,
+        rowsSeen: 1,
+        rowsCreated: 0,
+        possibleDuplicates: 0,
+      });
+      await ctx.db.insert('akahuEvidence', {
+        ownerId: profile._id,
+        accountId,
+        providerTransactionId: 'akahu-transaction-1',
+        transactionId,
+        postedDate: '2026-10-01',
+        amountMinor: -100n,
+        currency: 'NZD',
+        description: 'Shop',
+        normalizedDescription: 'shop',
+        sourceJson: '{}',
+        state: 'active',
+        lastSeenRunId: runId,
+      });
+      return transactionId;
+    });
+    await owner.mutation(api.imports.rollback, { importId });
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+    expect(await owner.run((ctx) => ctx.db.get('transactions', importedTransactionId))).toMatchObject({
+      voided: false,
+    });
+    expect(await owner.run((ctx) => ctx.db.get('imports', importId))).toMatchObject({ status: 'rolledBack' });
+  } finally {
+    vi.useRealTimers();
+  }
+});
