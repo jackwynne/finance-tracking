@@ -85,15 +85,15 @@ export const listTransactions = query({
     const transactions = await ctx.db
       .query('investmentTransactions')
       .withIndex('by_ownerId_and_effectiveDate', (q) => q.eq('ownerId', profile._id))
+      // eslint-disable-next-line @convex-dev/no-filter-in-query -- Residual predicates must run before the page or batch limit.
+      .filter((q) => q.eq(q.field('voided'), false))
       .order('desc')
       .take(500);
     return await Promise.all(
-      transactions
-        .filter((transaction) => !transaction.voided)
-        .map(async (transaction) => ({
-          ...transaction,
-          account: await ctx.db.get('investmentAccounts', transaction.accountId),
-        })),
+      transactions.map(async (transaction) => ({
+        ...transaction,
+        account: await ctx.db.get('investmentAccounts', transaction.accountId),
+      })),
     );
   },
 });
@@ -305,21 +305,22 @@ export const rollbackBatch = internalMutation({
   handler: async (ctx, args) => {
     const importJob = await ctx.db.get('investmentImports', args.importId);
     if (!importJob) return null;
-    const sources = (
-      await ctx.db
-        .query('investmentTransactionSources')
-        .withIndex('by_importId', (q) => q.eq('importId', importJob._id))
-        .take(25)
-    ).filter((source) => !source.voided);
+    const sources = await ctx.db
+      .query('investmentTransactionSources')
+      .withIndex('by_importId', (q) => q.eq('importId', importJob._id))
+      // eslint-disable-next-line @convex-dev/no-filter-in-query -- Residual predicates must run before the page or batch limit.
+      .filter((q) => q.eq(q.field('voided'), false))
+      .take(25);
     for (const source of sources) {
       await ctx.db.patch('investmentTransactionSources', source._id, { voided: true });
       await ctx.db.patch('investmentImportRows', source.importRowId, { status: 'rolledBack' });
       const otherSources = await ctx.db
         .query('investmentTransactionSources')
         .withIndex('by_transactionId', (q) => q.eq('transactionId', source.transactionId))
-        .take(100);
-      if (!otherSources.some((other) => other._id !== source._id && !other.voided))
-        await ctx.db.patch('investmentTransactions', source.transactionId, { voided: true });
+        // eslint-disable-next-line @convex-dev/no-filter-in-query -- Residual predicates must run before the page or batch limit.
+        .filter((q) => q.and(q.neq(q.field('_id'), source._id), q.eq(q.field('voided'), false)))
+        .take(1);
+      if (!otherSources.length) await ctx.db.patch('investmentTransactions', source.transactionId, { voided: true });
     }
     if (sources.length) {
       await ctx.scheduler.runAfter(0, internal.investmentImports.rollbackBatch, { importId: importJob._id });

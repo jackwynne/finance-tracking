@@ -1,6 +1,7 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+
 const accountType = v.union(
   v.literal('checking'),
   v.literal('savings'),
@@ -78,6 +79,7 @@ export default defineSchema({
     currentLedgerMinor: v.optional(v.int64()),
     currentAvailableMinor: v.optional(v.int64()),
     balanceAsOf: v.optional(v.string()),
+    providerAccountId: v.optional(v.string()),
   })
     .index('by_ownerId_and_archived', ['ownerId', 'archived'])
     .index('by_ownerId_and_sourceKeyHash', ['ownerId', 'sourceKeyHash']),
@@ -88,7 +90,7 @@ export default defineSchema({
     date: v.string(),
     ledgerMinor: v.int64(),
     availableMinor: v.optional(v.int64()),
-    source: v.union(v.literal('import'), v.literal('manual')),
+    source: v.union(v.literal('import'), v.literal('manual'), v.literal('akahu')),
     importId: v.optional(v.id('imports')),
     note: v.optional(v.string()),
     voided: v.boolean(),
@@ -199,11 +201,26 @@ export default defineSchema({
     transactionType: v.optional(v.string()),
     counterpartyId: v.optional(v.id('counterparties')),
     categoryId: v.optional(v.id('categories')),
+    categoryProvenance: v.optional(
+      v.union(v.literal('manual'), v.literal('merchant'), v.literal('import'), v.literal('assistant')),
+    ),
+    reportingTreatment: v.optional(
+      v.union(
+        v.literal('expense'),
+        v.literal('income'),
+        v.literal('investment'),
+        v.literal('debtPrincipal'),
+        v.literal('refund'),
+        v.literal('transfer'),
+      ),
+    ),
     notes: v.optional(v.string()),
     excluded: v.boolean(),
     voided: v.boolean(),
     reportingKind: v.union(v.literal('standard'), v.literal('transfer'), v.literal('refund')),
-    createdByImportId: v.id('imports'),
+    createdByImportId: v.optional(v.id('imports')),
+    origin: v.optional(v.union(v.literal('import'), v.literal('akahu'))),
+    providerTransactionId: v.optional(v.string()),
   })
     .index('by_ownerId_and_postedDate', ['ownerId', 'postedDate'])
     .index('by_ownerId_and_accountId_and_postedDate', ['ownerId', 'accountId', 'postedDate'])

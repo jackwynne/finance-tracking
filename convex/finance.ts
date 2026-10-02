@@ -189,16 +189,19 @@ export const listTransactions = query({
         if (args.dateTo) return owned.lte('postedDate', args.dateTo);
         return owned;
       })
+      // eslint-disable-next-line @convex-dev/no-filter-in-query -- Residual predicates must run before the page or batch limit.
+      .filter((q) =>
+        q.and(
+          q.eq(q.field('voided'), false),
+          ...(args.accountId ? [q.eq(q.field('accountId'), args.accountId)] : []),
+          ...(args.categoryId ? [q.eq(q.field('categoryId'), args.categoryId)] : []),
+          ...(args.counterpartyId ? [q.eq(q.field('counterpartyId'), args.counterpartyId)] : []),
+        ),
+      )
       .order('desc')
       .paginate(args.paginationOpts);
 
-    const page = result.page.filter(
-      (transaction) =>
-        !transaction.voided &&
-        (!args.accountId || transaction.accountId === args.accountId) &&
-        (!args.categoryId || transaction.categoryId === args.categoryId) &&
-        (!args.counterpartyId || transaction.counterpartyId === args.counterpartyId),
-    );
+    const page = result.page;
     return {
       ...result,
       page: await Promise.all(
@@ -225,8 +228,10 @@ export const searchTransactions = query({
         const search = q.search('normalizedDescription', normalizeText(args.search)).eq('ownerId', profile._id);
         return args.accountId ? search.eq('accountId', args.accountId) : search;
       })
-      .take(Math.min(args.limit, 100));
-    return results.filter((transaction) => !transaction.voided);
+      // eslint-disable-next-line @convex-dev/no-filter-in-query -- Residual predicates must run before the page or batch limit.
+      .filter((q) => q.eq(q.field('voided'), false))
+      .take(Math.max(1, Math.min(args.limit, 100)));
+    return results;
   },
 });
 
@@ -246,14 +251,18 @@ export const updateTransaction = mutation({
     if (args.counterpartyId) assertOwner(await ctx.db.get('counterparties', args.counterpartyId), profile._id);
 
     const patch: Partial<Doc<'transactions'>> = {};
-    if (args.categoryId !== undefined) patch.categoryId = args.categoryId ?? undefined;
+    if (args.categoryId !== undefined) {
+      patch.categoryId = args.categoryId ?? undefined;
+      patch.categoryProvenance = 'manual';
+    }
     if (args.counterpartyId !== undefined) patch.counterpartyId = args.counterpartyId ?? undefined;
     if (args.notes !== undefined) patch.notes = args.notes.trim() || undefined;
     if (args.excluded !== undefined) patch.excluded = args.excluded;
     await ctx.db.patch('transactions', transaction._id, patch);
 
-    const counterpartyId = args.counterpartyId ?? transaction.counterpartyId;
-    if (counterpartyId && args.categoryId) {
+    const counterpartyId =
+      args.counterpartyId === null ? undefined : (args.counterpartyId ?? transaction.counterpartyId);
+    if (args.scope !== 'transaction' && counterpartyId && args.categoryId) {
       await ctx.db.patch('counterparties', counterpartyId, { defaultCategoryId: args.categoryId });
       if (args.scope !== 'transaction') {
         const matches = await ctx.db
@@ -261,10 +270,24 @@ export const updateTransaction = mutation({
           .withIndex('by_ownerId_and_counterpartyId_and_postedDate', (q) =>
             q.eq('ownerId', profile._id).eq('counterpartyId', counterpartyId),
           )
-          .take(5000);
+          .take(501);
+        if (matches.length > 500)
+          throw new ConvexError(
+            'This merchant has more than 500 transactions. Use the Updates workflow to review a bounded selection.',
+          );
+        const uncategorized = await ctx.db
+          .query('categories')
+          .withIndex('by_ownerId_and_normalizedName', (q) =>
+            q.eq('ownerId', profile._id).eq('normalizedName', 'uncategorized'),
+          )
+          .unique();
         for (const match of matches) {
-          if (args.scope === 'all' || !match.categoryId)
-            await ctx.db.patch('transactions', match._id, { categoryId: args.categoryId });
+          if (match.voided || match._id === transaction._id || match.categoryProvenance === 'manual') continue;
+          if (args.scope === 'all' || !match.categoryId || match.categoryId === uncategorized?._id)
+            await ctx.db.patch('transactions', match._id, {
+              categoryId: args.categoryId,
+              categoryProvenance: 'merchant',
+            });
         }
       }
     }

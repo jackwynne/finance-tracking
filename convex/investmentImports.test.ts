@@ -51,3 +51,37 @@ test('deduplicates investment transactions across repeated imports', async () =>
     vi.useRealTimers();
   }
 });
+
+test('rollback drains more than 25 sources and preserves a shared investment transaction', async () => {
+  vi.useFakeTimers();
+  try {
+    const t = convexTest(schema, modules);
+    const owner = t.withIdentity({ tokenIdentifier: 'test|rollback', subject: 'rollback', issuer: 'test' });
+    await owner.mutation(api.profiles.ensureCurrent, {});
+    const header = fundExport.split('\n')[0];
+    const rows = Array.from(
+      { length: 30 },
+      (_, index) =>
+        `"IRD",${index + 1},1.5952,"2026-07-20T00:00:00","Employee Contributions","APP","115133144|event-${index}",${index + 1},${index + 1},"default"`,
+    );
+    const upload = async (contents: string, fileName: string) => {
+      const storageId = await owner.run((ctx) => ctx.storage.store(new Blob([contents])));
+      const importId = await owner.mutation(api.investmentImports.create, { storageId, fileName });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+      await owner.mutation(api.investmentImports.commit, { importId });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+      return importId;
+    };
+    const first = await upload(`${header}\n${rows.join('\n')}\n`, 'all.csv');
+    await upload(`${header}\n${rows[29]}\n`, 'shared.csv');
+    expect(await owner.query(api.investmentImports.listTransactions, {})).toHaveLength(30);
+    await owner.mutation(api.investmentImports.rollback, { importId: first });
+    await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+    const transactions = await owner.query(api.investmentImports.listTransactions, {});
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0].description).toContain('event-29');
+    expect((await owner.query(api.investmentImports.preview, { importId: first })).importJob.status).toBe('rolledBack');
+  } finally {
+    vi.useRealTimers();
+  }
+});

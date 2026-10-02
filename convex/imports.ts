@@ -359,6 +359,7 @@ export const commitBatch = internalMutation({
           transactionType: row.transactionType,
           counterpartyId: counterparty._id,
           categoryId: counterparty.defaultCategoryId,
+          categoryProvenance: counterparty.defaultCategoryId ? 'merchant' : 'import',
           excluded: false,
           voided: false,
           reportingKind: 'standard',
@@ -425,7 +426,7 @@ export const suggestLinks = internalMutation({
       await Promise.all(
         sources.filter((source) => !source.voided).map((source) => ctx.db.get('transactions', source.transactionId)),
       )
-    ).filter(Boolean) as Array<Doc<'transactions'>>;
+    ).filter((transaction): transaction is Doc<'transactions'> => transaction !== null);
     const all = await ctx.db
       .query('transactions')
       .withIndex('by_ownerId_and_postedDate', (q) => q.eq('ownerId', importJob.ownerId))
@@ -438,6 +439,7 @@ export const suggestLinks = internalMutation({
           !candidate.voided &&
           candidate.reportingKind === 'standard' &&
           candidate.amountMinor === -current.amountMinor &&
+          candidate.currency === current.currency &&
           daysBetween(candidate.postedDate, current.postedDate) <=
             (candidate.accountId === current.accountId ? 120 : 3),
       );
@@ -466,16 +468,10 @@ export const suggestLinks = internalMutation({
         type,
         fromTransactionId: from._id,
         toTransactionId: to._id,
-        status: 'confirmed',
-        confidence: 1,
+        status: 'suggested',
+        confidence: 0.8,
         createdBy: 'system',
       });
-      if (type === 'transfer') {
-        await ctx.db.patch('transactions', from._id, { reportingKind: 'transfer' });
-        await ctx.db.patch('transactions', to._id, { reportingKind: 'transfer' });
-      } else {
-        await ctx.db.patch('transactions', to._id, { reportingKind: 'refund', categoryId: from.categoryId });
-      }
     }
     return null;
   },
@@ -486,21 +482,22 @@ export const rollbackBatch = internalMutation({
   handler: async (ctx, args) => {
     const importJob = await ctx.db.get('imports', args.importId);
     if (!importJob) return null;
-    const sources = (
-      await ctx.db
-        .query('transactionSources')
-        .withIndex('by_importId', (q) => q.eq('importId', importJob._id))
-        .take(25)
-    ).filter((source) => !source.voided);
+    const sources = await ctx.db
+      .query('transactionSources')
+      .withIndex('by_importId', (q) => q.eq('importId', importJob._id))
+      // eslint-disable-next-line @convex-dev/no-filter-in-query -- Residual predicates must run before the page or batch limit.
+      .filter((q) => q.eq(q.field('voided'), false))
+      .take(25);
     for (const source of sources) {
       await ctx.db.patch('transactionSources', source._id, { voided: true });
       await ctx.db.patch('importRows', source.importRowId, { status: 'rolledBack' });
       const otherSources = await ctx.db
         .query('transactionSources')
         .withIndex('by_transactionId', (q) => q.eq('transactionId', source.transactionId))
-        .take(100);
-      if (!otherSources.some((other) => other._id !== source._id && !other.voided))
-        await ctx.db.patch('transactions', source.transactionId, { voided: true });
+        // eslint-disable-next-line @convex-dev/no-filter-in-query -- Residual predicates must run before the page or batch limit.
+        .filter((q) => q.and(q.neq(q.field('_id'), source._id), q.eq(q.field('voided'), false)))
+        .take(1);
+      if (!otherSources.length) await ctx.db.patch('transactions', source.transactionId, { voided: true });
     }
     if (sources.length) {
       await ctx.scheduler.runAfter(0, internal.imports.rollbackBatch, { importId: importJob._id });
@@ -517,9 +514,11 @@ export const rollbackBatch = internalMutation({
         .withIndex('by_ownerId_and_accountId_and_date', (q) =>
           q.eq('ownerId', importJob.ownerId).eq('accountId', importJob.accountId!),
         )
+        // eslint-disable-next-line @convex-dev/no-filter-in-query -- Residual predicates must run before the page or batch limit.
+        .filter((q) => q.eq(q.field('voided'), false))
         .order('desc')
-        .take(100);
-      const latest = active.find((snapshot) => !snapshot.voided);
+        .take(1);
+      const latest = active.at(0);
       await ctx.db.patch('accounts', importJob.accountId, {
         currentLedgerMinor: latest?.ledgerMinor,
         currentAvailableMinor: latest?.availableMinor,
