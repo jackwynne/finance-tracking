@@ -39,6 +39,16 @@ export function validateAllocation(value: Infer<typeof allocation>) {
     new Set(value.weights.map((row) => row.label)).size !== value.weights.length
   )
     throw new ConvexError('Allocation labels must be unique and nonempty.');
+  if (value.dimension === 'stock') {
+    if (value.weights.length === 0) throw new ConvexError('Stock disclosures need at least one issuer.');
+    if (
+      value.weights.some((row) => !row.issuerId || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(row.issuerId)) ||
+      new Set(value.weights.map((row) => row.issuerId)).size !== value.weights.length
+    )
+      throw new ConvexError('Stock allocations need unique canonical issuer IDs, combining share classes.');
+    if (value.weights.some((row) => decimal(row.weight) <= 0n))
+      throw new ConvexError('Stock allocations must contain positive issuer weights.');
+  }
   const total = value.weights.reduce((sum, row) => sum + decimal(row.weight), 0n);
   if (value.kind === 'target' && value.complete)
     throw new ConvexError('Target allocations cannot count as resolved actual exposure.');

@@ -8,6 +8,17 @@ const published = [
   { date: '2026-09-28', base: 'AUD', quote: 'NZD', rate: 1.239 },
 ];
 
+test('accepts the preceding published boundary rate for a weekend start, retaining the seven-day limit', () => {
+  const rows = [
+    { date: '2026-07-24', base: 'AUD', quote: 'NZD', rate: 1.2073 },
+    { date: '2026-07-27', base: 'AUD', quote: 'NZD', rate: 1.2085 },
+  ];
+  const rates = parsePublishedRates(JSON.stringify(rows), '2026-07-25', '2026-07-27');
+  expect(convertBooked(10000n, 'AUD', 'NZD', '2026-07-25', rates)?.amountMinor).toBe(12073n);
+  expect(convertBooked(10000n, 'AUD', 'NZD', '2026-07-26', rates)?.rateDate).toBe('2026-07-24');
+  expect(() => parsePublishedRates(JSON.stringify([rows[0]]), '2026-08-01', '2026-08-02')).toThrow('out-of-range');
+});
+
 test('validates published rates and computes the reciprocal with fixed-point rounding', () => {
   const rates = parsePublishedRates(JSON.stringify(published), '2026-09-24', '2026-09-30');
   expect(rates).toHaveLength(4);

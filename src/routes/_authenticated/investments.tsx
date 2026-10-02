@@ -1,7 +1,7 @@
 import { IconChevronRight, IconDownload, IconFileUpload, IconLoader2 } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -19,6 +19,7 @@ import {
   showError,
   StatusBadge,
 } from '@/features/finance/finance-ui';
+import { ImportUploadQueue, useImportUploadQueue } from '@/features/finance/import-upload-queue';
 
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
@@ -58,67 +59,71 @@ function Investments({
   const createImport = useMutation(api.investmentImports.create);
   const commit = useMutation(api.investmentImports.commit);
   const rollback = useMutation(api.investmentImports.rollback);
-  const [uploading, setUploading] = useState(false);
+
   const selectedId = imports?.find((entry) => entry._id === selectedImportId)?._id ?? null;
   const preview = useQuery(api.investmentImports.preview, selectedId ? { importId: selectedId } : 'skip');
   const downloadUrl = useQuery(api.investmentImports.sourceDownloadUrl, selectedId ? { importId: selectedId } : 'skip');
   const selected = preview?.importJob;
 
   useEffect(() => {
-    if (!selectedId && imports?.[0]) onSelectedImportChange(imports[0]._id);
+    if (!selectedId && imports?.length) {
+      const next = imports.find((entry) => entry.status === 'ready') ?? imports[0];
+      onSelectedImportChange(next._id);
+    }
   }, [imports, selectedId, onSelectedImportChange]);
 
   async function upload(file: File) {
-    if (!/\.csv$/i.test(file.name)) return toast.error('Choose a CSV investment export.');
-    setUploading(true);
-    try {
-      const url = await generateUrl();
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': file.type || 'text/csv' },
-        body: file,
-      });
-      if (!response.ok) throw new Error('The file upload failed.');
-      const uploaded = z.object({ storageId: z.string().min(1) }).parse(await response.json());
-      // SAFETY: the authenticated Convex upload endpoint returned this ID; createImport validates its storage-table identity.
-      const storageId = uploaded.storageId as Id<'_storage'>;
-      const importId = await createImport({ storageId, fileName: file.name });
-      onSelectedImportChange(importId);
-      toast.success('Investment export uploaded. Parsing has started.');
-    } catch (error) {
-      showError(error);
-    } finally {
-      setUploading(false);
-    }
+    if (!/\.csv$/i.test(file.name)) throw new Error('Choose a Smart or Simplicity CSV investment export.');
+
+    const url = await generateUrl();
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': file.type || 'text/csv' },
+      body: file,
+    });
+    if (!response.ok) throw new Error('The file upload failed.');
+    const uploaded = z.object({ storageId: z.string().min(1) }).parse(await response.json());
+    // SAFETY: the authenticated Convex upload endpoint returned this ID; createImport validates its storage-table identity.
+    const storageId = uploaded.storageId as Id<'_storage'>;
+    const importId = await createImport({ storageId, fileName: file.name });
+    return importId;
   }
+
+  const queue = useImportUploadQueue(upload);
 
   return (
     <>
       <PageHeading
         eyebrow="Portfolio activity"
         title="Investments"
-        description="Track units, prices, contributions, dividends, and other investment activity separately from cash transactions."
+        description="Import Smart transaction histories and Simplicity CSV exports. Review and commit each file. Hostplus files and provider holdings need the reviewed Updates workflow."
         action={
           <>
             <input
               ref={fileRef}
               className="hidden"
               type="file"
+              multiple
               accept=".csv,text/csv"
               onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void upload(file);
+                queue.add(Array.from(event.target.files ?? []));
                 event.target.value = '';
               }}
             />
-            <Button onClick={() => fileRef.current?.click()} disabled={uploading}>
-              {uploading ? <IconLoader2 className="animate-spin" /> : <IconFileUpload />}
-              Import investment CSV
+            <Button onClick={() => fileRef.current?.click()} disabled={queue.uploading}>
+              {queue.uploading ? <IconLoader2 className="animate-spin" /> : <IconFileUpload />}
+              Import investment CSVs
             </Button>
           </>
         }
       />
 
+      <ImportUploadQueue
+        entries={queue.entries}
+        uploading={queue.uploading}
+        onReview={(importId) => onSelectedImportChange(importId)}
+        onRetry={queue.retry}
+      />
       <Card className="mb-6">
         <CardHeader className="border-b sm:flex sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -184,7 +189,9 @@ function Investments({
         <Card>
           <CardHeader>
             <CardTitle>Investment imports</CardTitle>
-            <CardDescription>Newest first</CardDescription>
+            <CardDescription>
+              {imports?.filter((entry) => entry.status === 'ready').length ?? 0} files waiting for review. Newest first.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {imports?.length ? (

@@ -1,4 +1,5 @@
 import { useMutation, useQuery } from 'convex/react';
+import type { FunctionArgs } from 'convex/server';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -8,19 +9,14 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
 import { api } from '../../../convex/_generated/api';
-import { decimal, SCALE } from '../../../convex/lib/portfolioMath';
+import { ExposureBreakdown } from './exposure-breakdown';
+import { exposureMoney as display } from './exposure-format';
 import { PageHeading, showError } from './finance-ui';
 import { PortfolioForms } from './portfolio-forms';
+import { PortfolioHistory } from './portfolio-history';
 import { stringField, boolField, weightsField, optionalStringField } from './portfolio-input';
+import { StockExposure } from './stock-exposure';
 
-function display(value: string | null, currency: string) {
-  if (value === null) return 'Unresolved';
-  const raw = decimal(value);
-  const negative = raw < 0n;
-  const absolute = negative ? -raw : raw;
-  const cents = (absolute + SCALE / 200n) / (SCALE / 100n);
-  return `${currency} ${negative ? '-' : ''}${new Intl.NumberFormat('en-NZ').format(cents / 100n)}.${(cents % 100n).toString().padStart(2, '0')}`;
-}
 const positionExample = JSON.stringify(
   {
     key: 'kiwisaver-simplicity-high-growth',
@@ -60,7 +56,18 @@ export function PortfolioExposure() {
   }, [profile]);
   const [asOf, setAsOf] = useState(new Date().toISOString().slice(0, 10));
   const [currency, setCurrency] = useState<'NZD' | 'AUD'>('NZD');
-  const summary = useQuery(api.portfolio.getExposure, { asOf, currency });
+  const [assetScope, setAssetScope] =
+    useState<NonNullable<FunctionArgs<typeof api.portfolio.getExposure>['assetScope']>>('all');
+  const [retirementScope, setRetirementScope] =
+    useState<NonNullable<FunctionArgs<typeof api.portfolio.getExposure>['retirement']>>('all');
+  const [selectedPositions, setSelectedPositions] = useState<Array<string> | null>(null);
+  const summary = useQuery(api.portfolio.getExposure, {
+    asOf,
+    currency,
+    assetScope,
+    retirement: retirementScope,
+    positionIds: selectedPositions ?? undefined,
+  });
   const proposePurchase = useMutation(api.portfolio.proposePurchase);
   const resolvePurchase = useMutation(api.portfolio.resolvePurchase);
   const [purchasePosition, setPurchasePosition] = useState('');
@@ -126,8 +133,8 @@ export function PortfolioExposure() {
         });
       } else {
         const dimension = stringField(value, 'dimension');
-        if (dimension !== 'country' && dimension !== 'industry' && dimension !== 'assetClass')
-          throw new Error('Choose country, industry or assetClass.');
+        if (dimension !== 'country' && dimension !== 'industry' && dimension !== 'assetClass' && dimension !== 'stock')
+          throw new Error('Choose country, industry, assetClass or stock.');
         await saveAllocation({
           instrument: stringField(value, 'instrument'),
           dimension,
@@ -153,7 +160,7 @@ export function PortfolioExposure() {
         title="Exposure"
         description="Bank cash, investments, retirement savings and other recorded assets. Unknown values stay visible."
       />
-      <div className="mb-6 flex gap-3">
+      <div className="mb-6 flex max-w-sm gap-3">
         <Input type="date" aria-label="Valuation date" value={asOf} onChange={(e) => setAsOf(e.target.value)} />
         <select
           aria-label="Reporting currency"
@@ -164,6 +171,75 @@ export function PortfolioExposure() {
           <option>NZD</option>
           <option>AUD</option>
         </select>
+      </div>
+      <div className="mb-6 flex flex-wrap items-start gap-4 rounded-lg border p-4 text-sm">
+        <label className="space-y-1">
+          <span className="block text-muted-foreground">Asset scope</span>
+          <select
+            className="rounded border p-2"
+            aria-label="Asset scope"
+            value={assetScope}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value === 'all' || value === 'investments' || value === 'equities') setAssetScope(value);
+            }}
+          >
+            <option value="all">All recorded assets</option>
+            <option value="investments">Investments, excluding bank cash</option>
+            <option value="equities">Equity-focused investments</option>
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="block text-muted-foreground">Retirement access</span>
+          <select
+            className="rounded border p-2"
+            aria-label="Retirement access"
+            value={retirementScope}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value === 'all' || value === 'retirement' || value === 'accessible') setRetirementScope(value);
+            }}
+          >
+            <option value="all">All holdings</option>
+            <option value="retirement">Retirement savings</option>
+            <option value="accessible">Outside retirement</option>
+          </select>
+        </label>
+        {summary && (
+          <details className="min-w-52 py-1">
+            <summary className="cursor-pointer">
+              {selectedPositions === null ? 'All funds and accounts' : `${selectedPositions.length} holdings selected`}
+            </summary>
+            <div className="mt-3 space-y-2">
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setSelectedPositions(null)}>
+                  Select all
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setSelectedPositions([])}>
+                  Clear selection
+                </Button>
+              </div>
+              {summary.filterOptions.map((position) => (
+                <label key={position.id} className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedPositions === null || selectedPositions.includes(position.id)}
+                    onChange={(event) => {
+                      const current = selectedPositions ?? summary.filterOptions.map((entry) => entry.id);
+                      setSelectedPositions(
+                        event.target.checked ? [...current, position.id] : current.filter((id) => id !== position.id),
+                      );
+                    }}
+                  />
+                  {position.name}
+                </label>
+              ))}
+              <p className="max-w-xs text-xs text-muted-foreground">
+                Select funds or accounts to compare their exposure. The asset and retirement filters still apply.
+              </p>
+            </div>
+          </details>
+        )}
       </div>
       {summary && (
         <>
@@ -179,10 +255,19 @@ export function PortfolioExposure() {
           )}
           <div className="mb-6 grid gap-4 sm:grid-cols-3">
             {[
-              ['Recorded gross assets', summary.gross],
+              [
+                assetScope !== 'all' || retirementScope !== 'all' || selectedPositions !== null
+                  ? 'Selected gross assets'
+                  : 'Recorded gross assets',
+                summary.gross,
+              ],
               ['Debt', summary.debt],
               [
-                summary.potentialDuplicateAccounts ? 'Unreconciled recorded net total' : 'Net recorded wealth',
+                summary.potentialDuplicateAccounts
+                  ? 'Unreconciled recorded net total'
+                  : assetScope !== 'all' || retirementScope !== 'all' || selectedPositions !== null
+                    ? 'Selected assets less selected debt'
+                    : 'Net recorded wealth',
                 summary.net,
               ],
             ].map(([label, value]) => (
@@ -194,55 +279,39 @@ export function PortfolioExposure() {
               </Card>
             ))}
           </div>
-          <p className="mb-6 text-sm text-muted-foreground">
-            {summary.unknown} records have an unresolved valuation or currency conversion. These totals cover recorded,
-            valued assets only. Retirement access restrictions are shown separately from asset class.
-          </p>
-          <div className="grid gap-4 lg:grid-cols-3">
-            {summary.breakdowns.map((group) => (
-              <Card key={group.dimension}>
-                <CardHeader>
-                  <CardTitle>
-                    {group.dimension === 'assetClass'
-                      ? 'Asset class'
-                      : group.dimension === 'country'
-                        ? 'Country'
-                        : 'Industry'}
-                  </CardTitle>
-                  <CardDescription>
-                    {display(group.covered, currency)} fully resolved of {display(summary.gross, currency)}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {group.allocations.map((row) => (
-                    <div key={row.label} className="space-y-1 text-sm">
-                      <div className="flex justify-between gap-2">
-                        <span>{row.label}</span>
-                        <span className="font-mono">
-                          {display(row.value, currency)} ·{' '}
-                          {row.percent.slice(
-                            0,
-                            row.percent.indexOf('.') < 0 ? row.percent.length : row.percent.indexOf('.') + 3,
-                          )}
-                          %
-                        </span>
-                      </div>
-                      <div className="h-1.5 rounded bg-muted">
-                        <div
-                          className="h-full rounded bg-primary"
-                          style={{ width: `${Math.min(100, Math.max(0, Number(row.percent)))}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  <p className="text-xs text-muted-foreground">
-                    Unresolved coverage is {display(group.unresolved, currency)}. Known allocations above may be partial
-                    or signed. Coverage and allocation are separate measures and must not be added together. Country and
-                    industry are separate breakdowns, so their intersection is unavailable.
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
+          {(assetScope !== 'all' || retirementScope !== 'all' || selectedPositions !== null) && (
+            <p className="mb-4 text-sm text-muted-foreground">
+              Whole recorded portfolio net wealth is {display(summary.portfolioNet, currency)}. The cards and exposure
+              percentages below use only the selected holdings.
+            </p>
+          )}
+          <div className="mb-6 flex flex-wrap gap-x-8 gap-y-3 border-y py-4 text-sm">
+            <div>
+              <span className="text-muted-foreground">Outside retirement</span>
+              <p className="font-medium tabular-nums">{display(summary.accessibleValue, currency)}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Retirement savings</span>
+              <p className="font-medium tabular-nums">{display(summary.retirementValue, currency)}</p>
+            </div>
+            <p className="max-w-xl text-xs text-muted-foreground">
+              Retirement balances are part of gross assets and may have withdrawal restrictions. Outside retirement
+              describes account classification, not immediate liquidity. {summary.unknown} records have an unresolved
+              valuation or currency conversion.
+            </p>
+          </div>
+          {assetScope === 'equities' && (
+            <p className="mb-5 rounded border p-3 text-sm">
+              Disclosed equity value is {display(summary.equitySummary.value, currency)}.{' '}
+              {display(summary.equitySummary.unknownValue, currency)} has unresolved asset class coverage. Country and
+              stock charts show the selected holdings' gross exposure, including any non-equity assets within those
+              funds. Separate country and asset class disclosures do not establish an equity-only country breakdown.
+            </p>
+          )}
+          <StockExposure exposure={summary} currency={currency} />
+          <ExposureBreakdown exposure={summary} currency={currency} onSelectFunds={setSelectedPositions} />
+          <div className="my-6">
+            <PortfolioHistory asOf={asOf} />
           </div>
           <Card className="my-6">
             <CardHeader>
@@ -256,7 +325,7 @@ export function PortfolioExposure() {
                       <th>Asset</th>
                       <th>Native value</th>
                       <th>Reporting value</th>
-                      <th>Valuation / FX date</th>
+                      <th>Source dates</th>
                       <th>Source</th>
                     </tr>
                   </thead>
@@ -281,13 +350,23 @@ export function PortfolioExposure() {
                         <td>{display(row.nativeValue, row.currency)}</td>
                         <td>{display(row.value, currency)}</td>
                         <td>
-                          {row.date || 'Missing'} /{' '}
-                          {row.currency === currency ? 'No FX required' : row.fxDate || 'Missing FX'}
+                          <div>Valuation {row.date || 'missing'}</div>
+                          {row.holdingsDate && (
+                            <div className="text-xs text-muted-foreground">Units {row.holdingsDate}</div>
+                          )}
+                          {row.currency !== currency && (
+                            <div className="text-xs text-muted-foreground">FX {row.fxDate || 'missing'}</div>
+                          )}
+                          {row.futureBalanceDate && (
+                            <div className="text-xs text-amber-700">
+                              Newer balance dated {row.futureBalanceDate} is after this report date.
+                            </div>
+                          )}
                           {row.date && (Date.parse(asOf) - Date.parse(row.date)) / 86400000 > 90 && (
                             <div className="text-xs text-amber-700">Valuation more than 90 days old</div>
                           )}
                         </td>
-                        <td>{row.source}</td>
+                        <td className="max-w-xs break-words">{row.source}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -297,7 +376,7 @@ export function PortfolioExposure() {
           </Card>
         </>
       )}
-      {summary && (
+      {summary && summary.rows.some((row) => row.activities.some((activity) => activity.status === 'ambiguous')) && (
         <Card className="mb-6">
           <CardHeader>
             <CardTitle>Purchase reconciliation</CardTitle>
@@ -337,15 +416,20 @@ export function PortfolioExposure() {
           </CardContent>
         </Card>
       )}
-      <PortfolioForms />
       <details className="my-6 rounded-lg border p-4">
-        <summary className="cursor-pointer font-heading font-semibold">Upload prepared evidence from ChatGPT</summary>
+        <summary className="cursor-pointer font-heading font-semibold">Manage positions and currency rates</summary>
+        <div className="mt-4">
+          <PortfolioForms />
+        </div>
+      </details>
+      <details className="my-6 rounded-lg border p-4">
+        <summary className="cursor-pointer font-heading font-semibold">Advanced portfolio evidence</summary>
         <Card>
           <CardHeader>
             <CardTitle>Add portfolio evidence</CardTitle>
             <CardDescription>
-              Ask ChatGPT to prepare this JSON from a dated statement or official allocation disclosure. Review every
-              field here before saving. The earlier undated screenshot is not a verified valuation.
+              Prepare this JSON from a dated statement or official allocation disclosure. Review every field before
+              saving. For bulk changes with a dry run and receipt, use Updates.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

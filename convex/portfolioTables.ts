@@ -1,7 +1,12 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
-export const dimension = v.union(v.literal('country'), v.literal('industry'), v.literal('assetClass'));
+export const dimension = v.union(
+  v.literal('country'),
+  v.literal('industry'),
+  v.literal('assetClass'),
+  v.literal('stock'),
+);
 export const portfolioTables = {
   portfolioPositions: defineTable({
     ownerId: v.id('profiles'),
@@ -63,7 +68,7 @@ export const portfolioTables = {
     source: v.string(),
     evidence: v.string(),
     complete: v.boolean(),
-    weights: v.array(v.object({ label: v.string(), weight: v.string() })),
+    weights: v.array(v.object({ label: v.string(), weight: v.string(), issuerId: v.optional(v.string()) })),
   }).index('by_ownerId_and_instrument_and_date', ['ownerId', 'instrument', 'date']),
   portfolioFxRates: defineTable({
     ownerId: v.id('profiles'),

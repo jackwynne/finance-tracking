@@ -474,3 +474,302 @@ test('fund switches close the old fund and open a distinct identity atomically w
   expect(undone.rows).toHaveLength(1);
   expect(undone.rows[0]).toMatchObject({ id: oldId, instrument: position.instrument, units: '100', value: '100' });
 });
+
+test('stock look-through combines issuer overlap without adding wealth and keeps missing disclosures visible', async () => {
+  const t = convexTest(schema, modules);
+  const owner = t.withIdentity({ tokenIdentifier: 'test|stocks', subject: 'stocks', issuer: 'test' });
+  await owner.mutation(api.profiles.ensureCurrent, {});
+  await owner.mutation(api.portfolio.savePosition, position);
+  await owner.mutation(api.portfolio.savePosition, {
+    ...position,
+    key: 'world',
+    instrument: 'VT',
+    name: 'World',
+    retirement: true,
+    value: '200',
+  });
+  await owner.mutation(api.portfolio.savePosition, { ...position, key: 'missing', instrument: 'Unknown', value: '50' });
+  const futureId = await owner.mutation(api.portfolio.savePosition, {
+    ...position,
+    key: 'future',
+    instrument: 'Future',
+    snapshotDate: '2026-10-01',
+  });
+  await owner.mutation(api.portfolio.savePosition, {
+    ...position,
+    key: 'loan',
+    instrument: 'Loan',
+    debt: true,
+    value: '400',
+  });
+  const source = {
+    dimension: 'stock' as const,
+    date: '2026-08-31',
+    source: 'Official holdings',
+    evidence: 'Provider top holdings only',
+    complete: false,
+  };
+  await owner.mutation(api.portfolio.saveAllocation, {
+    ...source,
+    instrument: position.instrument,
+    weights: [{ issuerId: 'alphabet', label: 'Alphabet', weight: '0.2' }],
+  });
+  await owner.mutation(api.portfolio.saveAllocation, {
+    ...source,
+    instrument: 'VT',
+    weights: [
+      { issuerId: 'alphabet', label: 'Alphabet', weight: '0.1' },
+      { issuerId: 'apple', label: 'Apple', weight: '0.1' },
+    ],
+  });
+  await owner.mutation(api.portfolio.saveAllocation, {
+    ...source,
+    instrument: position.instrument,
+    kind: 'target',
+    date: '2026-09-01',
+    weights: [{ issuerId: 'apple', label: 'Apple', weight: '1' }],
+  });
+  await owner.mutation(api.portfolio.saveAllocation, {
+    ...source,
+    instrument: 'VT',
+    date: '2026-10-01',
+    weights: [{ issuerId: 'apple', label: 'Apple', weight: '1' }],
+  });
+  await owner.mutation(api.portfolio.saveAllocation, {
+    instrument: 'VT',
+    dimension: 'country',
+    date: source.date,
+    source: source.source,
+    evidence: source.evidence,
+    complete: false,
+    weights: [{ label: 'United States', weight: '0.6' }],
+  });
+  const summary = await owner.query(api.portfolio.getExposure, { asOf: '2026-09-01', currency: 'NZD' });
+  expect(summary).toMatchObject({
+    gross: '350',
+    debt: '400',
+    net: '-50',
+    retirementValue: '200',
+    accessibleValue: '150',
+  });
+  expect(summary.stockExposure).toMatchObject({
+    investmentsValue: '350',
+    reportedValue: '60',
+    remainingUnknown: '290',
+    sourceCoverageValue: '300',
+    completeValue: '0',
+    unknownPositions: [futureId],
+  });
+  expect(summary.stockExposure.stocks[0]).toMatchObject({ issuerId: 'alphabet', value: '40', percentOfNet: null });
+  expect(summary.stockExposure.stocks[0].contributions.map((row) => row.value)).toEqual(['20', '20']);
+  expect(summary.stockExposure.sources.find((row) => row.instrument === 'Unknown')?.status).toBe('missing');
+  expect(summary.stockExposure.sources.find((row) => row.instrument === 'VT')).toMatchObject({
+    status: 'partial',
+    allocationDate: '2026-08-31',
+    holdingsDate: '2026-09-01',
+    valuationDate: '2026-09-01',
+  });
+  expect(summary.breakdowns.find((row) => row.dimension === 'country')?.allocations[0]).toMatchObject({
+    label: 'United States',
+    value: '120',
+    contributions: [{ instrument: 'VT', weight: '0.6', allocationDate: source.date, value: '120' }],
+  });
+});
+
+test('stock jobs preserve provenance, revisions, retry and undo, while enforcing issuer identities', async () => {
+  const t = convexTest(schema, modules);
+  const owner = t.withIdentity({ tokenIdentifier: 'test|stockjob', subject: 'stockjob', issuer: 'test' });
+  await owner.mutation(api.profiles.ensureCurrent, {});
+  await owner.mutation(api.portfolio.savePosition, position);
+  const value = {
+    instrument: position.instrument,
+    dimension: 'stock' as const,
+    date: '2026-09-01',
+    source: 'Official leveraged holdings',
+    evidence: 'Gross equity exposure; financing excluded',
+    complete: false,
+    weights: [{ issuerId: 'nvidia', label: 'Nvidia', weight: '1.1' }],
+  };
+  await expect(
+    owner.mutation(api.portfolio.saveAllocation, { ...value, weights: [{ label: 'Nvidia', weight: '0.1' }] }),
+  ).rejects.toThrow('issuer IDs');
+  await expect(
+    owner.mutation(api.portfolio.saveAllocation, {
+      ...value,
+      weights: [{ issuerId: 'nvidia', label: 'Nvidia', weight: '-0.1' }],
+    }),
+  ).rejects.toThrow('positive issuer');
+  await expect(
+    owner.mutation(api.portfolio.saveAllocation, {
+      ...value,
+      weights: [
+        { issuerId: 'alphabet', label: 'Class A', weight: '0.1' },
+        { issuerId: 'alphabet', label: 'Class C', weight: '0.1' },
+      ],
+    }),
+  ).rejects.toThrow('issuer IDs');
+  const context = await owner.query(api.updates.getContext, {});
+  const expectedRevision = context.portfolio.instrumentRevisions.find(
+    (row) => row.instrument === position.instrument,
+  )?.revision;
+  if (!expectedRevision) throw new Error('Missing instrument revision');
+  const jobId = await owner.mutation(api.updates.stage, {
+    version: 1,
+    deployment: context.deployment,
+    ownerId: context.ownerId,
+    clientKey: 'stock-job',
+    title: 'Stock disclosure',
+    questions: [],
+    sources: [value.source],
+    groups: [{ kind: 'portfolioAllocation', expectedRevision, reason: 'Provider published dated holdings', value }],
+  });
+  const preview = await owner.query(api.updates.preview, { jobId });
+  await owner.mutation(api.updates.apply, { jobId, previewHash: preview.previewHash });
+  await owner.mutation(api.updates.apply, { jobId, previewHash: preview.previewHash });
+  const summary = await owner.query(api.portfolio.getExposure, { asOf: '2026-09-01', currency: 'NZD' });
+  expect(summary.gross).toBe('100');
+  expect(summary.stockExposure).toMatchObject({
+    reportedValue: '110',
+    remainingUnknown: '0',
+    sourceCoveragePercent: '100',
+    completeValue: '0',
+  });
+  expect(summary.stockExposure.stocks[0]).toMatchObject({
+    value: '110',
+    percentOfGross: '110',
+    percentOfNet: '110',
+    contributions: [{ source: value.source, evidence: value.evidence }],
+  });
+  const other = t.withIdentity({ tokenIdentifier: 'test|stock-other', subject: 'stock-other', issuer: 'test' });
+  await other.mutation(api.profiles.ensureCurrent, {});
+  await expect(other.query(api.updates.preview, { jobId })).rejects.toThrow('Record not found');
+  await owner.mutation(api.updates.undo, { jobId, previewHash: preview.previewHash });
+  expect(
+    (await owner.query(api.portfolio.getExposure, { asOf: '2026-09-01', currency: 'NZD' })).stockExposure.stocks,
+  ).toHaveLength(0);
+});
+
+test('asset filters recompute exposure without inventing country and equity intersections', async () => {
+  const t = convexTest(schema, modules);
+  const owner = t.withIdentity({ tokenIdentifier: 'test|filtered', subject: 'filtered', issuer: 'test' });
+  await owner.mutation(api.profiles.ensureCurrent, {});
+  const profile = await owner.query(api.profiles.current, {});
+  if (!profile) throw new Error('Missing profile');
+  const fundId = await owner.mutation(api.portfolio.savePosition, position);
+  const retirementId = await owner.mutation(api.portfolio.savePosition, {
+    ...position,
+    key: 'retirement',
+    instrument: 'RET',
+    value: '200',
+    retirement: true,
+  });
+  await owner.mutation(api.portfolio.savePosition, { ...position, key: 'cashfund', instrument: 'CASH', value: '50' });
+  await owner.mutation(api.portfolio.savePosition, {
+    ...position,
+    key: 'unknownmix',
+    instrument: 'UNKNOWN',
+    value: '30',
+  });
+  const bankId = await owner.run(async (ctx) => {
+    const id = await ctx.db.insert('accounts', {
+      ownerId: profile._id,
+      name: 'ANZ cash',
+      type: 'checking',
+      institution: 'ANZ',
+      currency: 'NZD',
+      mask: '1234',
+      archived: false,
+      balanceAsOf: '2026-10-05',
+    });
+    await ctx.db.insert('balanceSnapshots', {
+      ownerId: profile._id,
+      accountId: id,
+      date: '2026-09-01',
+      ledgerMinor: 50000n,
+      source: 'manual',
+      voided: false,
+    });
+    return id;
+  });
+  const source = {
+    date: '2026-09-01',
+    source: 'Official asset mix',
+    evidence: 'Observed net asset classes',
+    complete: true,
+  };
+  for (const instrument of [position.instrument, 'RET']) {
+    await owner.mutation(api.portfolio.saveAllocation, {
+      ...source,
+      instrument,
+      dimension: 'assetClass',
+      weights: [
+        { label: 'International equities', weight: '0.8' },
+        { label: 'Cash', weight: '0.2' },
+      ],
+    });
+    await owner.mutation(api.portfolio.saveAllocation, {
+      ...source,
+      instrument,
+      dimension: 'country',
+      complete: false,
+      weights: [{ label: 'United States', weight: '0.6' }],
+    });
+  }
+  await owner.mutation(api.portfolio.saveAllocation, {
+    ...source,
+    instrument: 'UNKNOWN',
+    dimension: 'assetClass',
+    weights: [{ label: 'Growth assets', weight: '1' }],
+  });
+  await owner.mutation(api.portfolio.saveAllocation, {
+    ...source,
+    instrument: 'CASH',
+    dimension: 'assetClass',
+    weights: [{ label: 'Cash', weight: '1' }],
+  });
+  await owner.mutation(api.portfolio.saveAllocation, {
+    ...source,
+    instrument: position.instrument,
+    dimension: 'stock',
+    complete: false,
+    weights: [{ issuerId: 'nvidia', label: 'Nvidia', weight: '0.2' }],
+  });
+  const all = await owner.query(api.portfolio.getExposure, { asOf: source.date, currency: 'NZD' });
+  expect(all.gross).toBe('880');
+  expect(all.rows.find((row) => row.id === bankId)?.futureBalanceDate).toBe('2026-10-05');
+  const equities = await owner.query(api.portfolio.getExposure, {
+    asOf: source.date,
+    currency: 'NZD',
+    assetScope: 'equities',
+  });
+  expect(equities).toMatchObject({
+    gross: '330',
+    portfolioGross: '880',
+    portfolioNet: '880',
+    equitySummary: { value: '240', unknownValue: '30' },
+  });
+  expect(equities.rows.map((row) => row.instrument).sort()).toEqual(['NZX:USG', 'RET', 'UNKNOWN']);
+  expect(equities.breakdowns.find((row) => row.dimension === 'country')?.allocations[0].value).toBe('180');
+  expect(equities.filterOptions).toHaveLength(5);
+  const selected = await owner.query(api.portfolio.getExposure, {
+    asOf: source.date,
+    currency: 'NZD',
+    positionIds: [fundId],
+    assetScope: 'equities',
+  });
+  expect(selected).toMatchObject({ gross: '100', equitySummary: { value: '80' } });
+  expect(selected.stockExposure.stocks[0]).toMatchObject({
+    value: '20',
+    percentOfNet: '20',
+    percentOfPortfolioNet: '2.272727272727',
+  });
+  expect(selected.breakdowns.find((row) => row.dimension === 'country')?.allocations[0].value).toBe('60');
+  const retired = await owner.query(api.portfolio.getExposure, {
+    asOf: source.date,
+    currency: 'NZD',
+    retirement: 'retirement',
+  });
+  expect(retired.rows.map((row) => row.id)).toEqual([retirementId]);
+  const empty = await owner.query(api.portfolio.getExposure, { asOf: source.date, currency: 'NZD', positionIds: [] });
+  expect(empty).toMatchObject({ rows: [], gross: '0', equitySummary: { value: '0' }, stockExposure: { stocks: [] } });
+});

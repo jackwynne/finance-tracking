@@ -3,7 +3,17 @@ import { ConvexError, v } from 'convex/values';
 import type { Doc } from './_generated/dataModel';
 import { query, mutation } from './_generated/server';
 import { requireProfile, assertOwner } from './lib/auth';
-import { decimal, decimalText, date, multiply, rateFor, SCALE, uncovered } from './lib/portfolioMath';
+import {
+  decimal,
+  decimalText,
+  date,
+  equityExposure,
+  multiply,
+  rateFor,
+  SCALE,
+  stockExposure,
+  uncovered,
+} from './lib/portfolioMath';
 import {
   validatePosition,
   validatePositionIdentity,
@@ -140,7 +150,13 @@ export const resolvePurchase = mutation({
   },
 });
 export const getExposure = query({
-  args: { asOf: v.string(), currency: v.union(v.literal('NZD'), v.literal('AUD')) },
+  args: {
+    asOf: v.string(),
+    currency: v.union(v.literal('NZD'), v.literal('AUD')),
+    positionIds: v.optional(v.array(v.string())),
+    assetScope: v.optional(v.union(v.literal('all'), v.literal('investments'), v.literal('equities'))),
+    retirement: v.optional(v.union(v.literal('all'), v.literal('retirement'), v.literal('accessible'))),
+  },
   handler: async (ctx, args) => {
     const p = await requireProfile(ctx);
     date(args.asOf);
@@ -183,7 +199,7 @@ export const getExposure = query({
     const duplicateAccountIds = new Set(
       duplicateAccountGroups.flatMap((group) => group.accounts.map((account) => account.id)),
     );
-    const rows: Array<{
+    let rows: Array<{
       id: string;
       name: string;
       accountIdentity: string;
@@ -193,6 +209,8 @@ export const getExposure = query({
       retirement: boolean;
       source: string;
       date: string;
+      holdingsDate: string | null;
+      futureBalanceDate: string | null;
       units: string;
       nativeValue: string | null;
       value: string | null;
@@ -264,6 +282,8 @@ export const getExposure = query({
         retirement: position.retirement,
         source: price?.source ?? snapshot?.source ?? position.source,
         date: price?.date ?? snapshot?.snapshotDate ?? position.snapshotDate,
+        holdingsDate: snapshot?.snapshotDate ?? null,
+        futureBalanceDate: null,
         units: decimalText(units),
         nativeValue: native === null ? null : decimalText(native),
         value: native !== null && rate ? decimalText(multiply(native, decimal(rate.rate))) : null,
@@ -302,6 +322,8 @@ export const getExposure = query({
         retirement: false,
         source: balance?.source ?? 'No dated balance',
         date: balance?.date ?? '',
+        holdingsDate: balance?.date ?? null,
+        futureBalanceDate: account.balanceAsOf && account.balanceAsOf > args.asOf ? account.balanceAsOf : null,
         units: '',
         nativeValue: native === null ? null : decimalText(native < 0n ? -native : native),
         value:
@@ -315,6 +337,41 @@ export const getExposure = query({
             : undefined,
       });
     }
+    const filterOptions = rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      instrument: row.instrument,
+      retirement: row.retirement,
+      debt: row.debt,
+      accountIdentity: row.accountIdentity,
+    }));
+    const portfolioGross = rows
+      .filter((row) => !row.debt && row.value !== null)
+      .reduce((sum, row) => sum + decimal(row.value ?? '0'), 0n);
+    const portfolioDebt = rows
+      .filter((row) => row.debt && row.value !== null)
+      .reduce((sum, row) => sum + decimal(row.value ?? '0'), 0n);
+    const selectedIds = args.positionIds ? new Set(args.positionIds) : null;
+    rows = rows.filter(
+      (row) =>
+        (!selectedIds || selectedIds.has(row.id)) &&
+        (args.retirement === 'retirement'
+          ? row.retirement
+          : args.retirement === 'accessible'
+            ? !row.retirement
+            : true) &&
+        (args.assetScope === 'investments' || args.assetScope === 'equities'
+          ? !row.debt && !row.instrument.startsWith('bank:')
+          : true),
+    );
+    if (args.assetScope === 'equities') {
+      const excluded = new Set(
+        equityExposure({ rows, allocations, asOf: args.asOf })
+          .sources.filter((source) => source.status === 'complete' && decimal(source.equityValue) <= 0n)
+          .map((source) => source.positionId),
+      );
+      rows = rows.filter((row) => !excluded.has(row.id));
+    }
     let gross = 0n,
       debt = 0n;
     for (const row of rows) {
@@ -326,6 +383,19 @@ export const getExposure = query({
     const breakdowns = ['country', 'industry', 'assetClass'].map((kind) => {
       let covered = 0n;
       const buckets = new Map<string, bigint>();
+      const contributions = new Map<
+        string,
+        Array<{
+          positionId: string;
+          name: string;
+          instrument: string;
+          value: string;
+          weight: string;
+          allocationDate: string;
+          source: string;
+          evidence: string;
+        }>
+      >();
       for (const row of rows) {
         if (row.debt || row.value === null) continue;
         const value = decimal(row.value);
@@ -344,8 +414,22 @@ export const getExposure = query({
               ? [{ label: row.country, weight: '1' }]
               : []);
         if (allocation?.complete || (weights.length > 0 && !allocation)) covered += value;
-        for (const weight of weights)
-          buckets.set(weight.label, (buckets.get(weight.label) ?? 0n) + multiply(value, decimal(weight.weight)));
+        for (const weight of weights) {
+          const attributed = multiply(value, decimal(weight.weight));
+          buckets.set(weight.label, (buckets.get(weight.label) ?? 0n) + attributed);
+          const items = contributions.get(weight.label) ?? [];
+          items.push({
+            positionId: row.id,
+            name: row.name,
+            instrument: row.instrument,
+            value: decimalText(attributed),
+            weight: weight.weight,
+            allocationDate: allocation?.date ?? row.date,
+            source: allocation?.source ?? row.source,
+            evidence: allocation?.evidence ?? 'Dated account balance',
+          });
+          contributions.set(weight.label, items);
+        }
       }
       return {
         dimension: kind,
@@ -354,6 +438,7 @@ export const getExposure = query({
         coveredPercent: gross > 0n ? decimalText((covered * 100n * SCALE) / gross) : '0',
         allocations: [...buckets].map(([label, value]) => ({
           label,
+          contributions: contributions.get(label) ?? [],
           value: decimalText(value),
           percent: gross > 0n ? decimalText((value * 100n * SCALE) / gross) : '0',
         })),
@@ -361,14 +446,37 @@ export const getExposure = query({
     });
     return {
       rows,
+      filterOptions,
+      portfolioGross: decimalText(portfolioGross),
+      portfolioNet: decimalText(portfolioGross - portfolioDebt),
+      equitySummary: equityExposure({ rows, allocations, asOf: args.asOf }),
       breakdowns,
+      stockExposure: stockExposure({
+        rows,
+        allocations,
+        asOf: args.asOf,
+        gross,
+        net: gross - debt,
+        portfolioGross,
+        portfolioNet: portfolioGross - portfolioDebt,
+      }),
+      retirementValue: decimalText(
+        rows
+          .filter((row) => row.retirement && !row.debt && row.value !== null)
+          .reduce((sum, row) => sum + decimal(row.value ?? '0'), 0n),
+      ),
+      accessibleValue: decimalText(
+        rows
+          .filter((row) => !row.retirement && !row.debt && row.value !== null)
+          .reduce((sum, row) => sum + decimal(row.value ?? '0'), 0n),
+      ),
       gross: decimalText(gross),
       debt: decimalText(debt),
       net: decimalText(gross - debt),
       unknown: rows.filter((row) => row.value === null).length,
       duplicateAccountGroups,
       potentialDuplicateAccounts: duplicateAccountIds.size,
-      totalsIncomplete: duplicateAccountIds.size > 0 || rows.some((row) => row.value === null),
+      totalsIncomplete: rows.some((row) => row.potentialDuplicate || row.value === null),
       positions,
       rates,
       targets: allocations.filter((row) => row.kind === 'target' && row.date <= args.asOf),

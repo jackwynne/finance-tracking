@@ -9,6 +9,8 @@ Help the user maintain their personal Koru records. Their explicit task controls
 
 With MCP, call `get_review_context` first. Use its owner/deployment binding, proposal template, group contract and portfolio revisions. For transactions, follow `list_transactions` cursors until `isDone`; a partial page is not the whole ledger. Use `get_record_evidence` when a merchant or amount is ambiguous. Read summaries with `get_spending_summary` or `get_exposure_summary` rather than inventing combined totals.
 
+For a holdings or composition task, choose the Portfolio and fund holdings review task in Updates. This exports current portfolio evidence and revisions without reading bank transaction pages. For classifications, choose All transactions or Unresolved categories.
+
 With files, read the review bundle's manifest, instructions, context and transaction pages. Respect its filters and completeness markers. Return a proposals JSON document matching the supplied contract, not a modified review bundle. If the current contract or required revisions are missing, request a fresh bundle before preparing changes.
 
 ## Prepare changes
@@ -16,6 +18,8 @@ With files, read the review bundle's manifest, instructions, context and transac
 Use the user's existing categories and broad groups. Preserve manual decisions unless the task explicitly asks to reconsider them. A one-off classification changes specific records; a merchant rule changes future defaults. Do not infer an account transfer from similar amounts alone. Splits must use exact minor-unit amounts, match the transaction total and include sourced reasons. Leave unclear cases in `questions`.
 
 For assets, retain original currency, dated source, account/fund identity, statement units/value, ownership share and statement cutoff basis. A fund's exchange/listing country and denomination are not its underlying geographic exposure. Country, industry and asset-class breakdowns are separate marginals; do not infer their intersection. Label provider targets separately from dated holdings and retain incomplete coverage. Do not infer current values from an undated screenshot or a purchase amount.
+
+For underlying stocks, use portfolioAllocation with dimension stock and a stable issuerId on every weight. Use the same issuerId across funds. Combine share classes only when an explicit issuer mapping supports it. Keep stock values as attribution within the parent holding, never as extra portfolio positions. Exclude cash, derivatives and pooled-fund totals from company rows. Retain the wrapper fund's weight and source date when estimating look-through. Top holdings remain partial; never normalize a truncated list to 100%.
 
 For purchase emails, extract only present fields. Retain the original evidence reference. Repeated trade references can describe one trade, while equal dates and units can be two real purchases. Mark ambiguous cases for review. Clarify whether same-day activity is covered by the statement and whether dates are trade or settlement dates. Emails can omit sales, fees and switches, so request periodic statement reconciliation.
 

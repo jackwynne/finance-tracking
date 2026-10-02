@@ -1,11 +1,13 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useAction, useQuery } from 'convex/react';
+import type { FunctionReturnType } from 'convex/server';
 import { useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { FinanceMonthlyChart } from '@/features/finance/finance-charts';
 import { PageHeading } from '@/features/finance/finance-ui';
 import { financeErrorMessage } from '@/lib/finance-error';
 
@@ -192,24 +194,12 @@ function Spending() {
             <CardHeader>
               <CardTitle>Monthly trend</CardTitle>
               <CardDescription>
-                Complete prior months alongside the selected period. Missing rates and read limits remain visible.
+                Prior calendar months alongside the selected period. Missing coverage, rates and read limits remain
+                visible.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-4">
-              {[3, 2, 1].map((offset) => {
-                const date = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1 - offset, 1));
-                return (
-                  <TrendMonth key={date.toISOString()} month={date.toISOString().slice(0, 7)} currency={currency} />
-                );
-              })}
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  {month}
-                  {to !== lastDay ? ' to date' : ''}
-                </p>
-                <p className="font-heading text-lg">{format(data.current.spendingMinor)}</p>
-                {!data.current.complete && <p className="text-xs text-amber-700">Incomplete</p>}
-              </div>
+            <CardContent>
+              <MonthlyTrend month={month} currency={currency} current={data} toDate={to !== lastDay} />
             </CardContent>
           </Card>
           <Card className="mt-6">
@@ -277,20 +267,59 @@ function Metric({ title, value, detail }: { title: string; value: string; detail
   );
 }
 
-function TrendMonth({ month, currency }: { month: string; currency: 'NZD' | 'AUD' }) {
-  const to = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10);
-  const data = useQuery(api.spending.summary, { from: `${month}-01`, to, currency });
+function MonthlyTrend({
+  month,
+  currency,
+  current,
+  toDate,
+}: {
+  month: string;
+  currency: 'NZD' | 'AUD';
+  current: FunctionReturnType<typeof api.spending.summary>;
+  toDate: boolean;
+}) {
+  const periods = [3, 2, 1].map((offset) => {
+    const date = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1 - offset, 1));
+    const from = date.toISOString().slice(0, 10);
+    const to = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+    return { from, to, currency };
+  });
+  const first = useQuery(api.spending.summary, periods[0]);
+  const second = useQuery(api.spending.summary, periods[1]);
+  const third = useQuery(api.spending.summary, periods[2]);
+  const summaries = [first, second, third, current];
+  const formatValue = (value: number) => new Intl.NumberFormat('en-NZ', { style: 'currency', currency }).format(value);
+  const rows = summaries.flatMap((summary, index) => {
+    if (!summary) return [];
+    const label = summary.current.from.slice(0, 7);
+    const incomplete = !summary.current.complete || summary.coverage.some((account) => account.currentGaps.length > 0);
+    return [
+      {
+        label: `${label}${index === 3 && toDate ? ' to date' : ''}${incomplete ? ' *' : ''}`,
+        value: Number(summary.current.spendingMinor) / 100,
+        detail: incomplete ? 'Incomplete coverage or conversion' : 'Recorded spending',
+      },
+    ];
+  });
   return (
-    <div>
-      <p className="text-sm text-muted-foreground">{month}</p>
-      <p className="font-heading text-lg">
-        {data
-          ? new Intl.NumberFormat('en-NZ', { style: 'currency', currency }).format(
-              Number(data.current.spendingMinor) / 100,
-            )
-          : 'Loading...'}
+    <div className="space-y-4">
+      {summaries.some((summary) => !summary) ? (
+        <p className="text-sm text-muted-foreground">Loading monthly trend...</p>
+      ) : (
+        <FinanceMonthlyChart rows={rows} title={`Monthly recorded spending in ${currency}`} formatValue={formatValue} />
+      )}
+      <p className="text-sm text-muted-foreground">
+        * Incomplete source coverage or conversion. The current month is shown to date. Lower recorded spending may
+        reflect missing statements or fewer days.
       </p>
-      {data && !data.current.complete && <p className="text-xs text-amber-700">Incomplete</p>}
+      <div className="grid gap-4 sm:grid-cols-4">
+        {rows.map((row) => (
+          <div key={row.label}>
+            <p className="text-sm text-muted-foreground">{row.label}</p>
+            <p className="font-heading text-lg">{formatValue(row.value)}</p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

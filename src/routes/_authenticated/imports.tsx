@@ -1,7 +1,7 @@
 import { IconChevronRight, IconDownload, IconFileUpload, IconLoader2 } from '@tabler/icons-react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useMutation, useQuery } from 'convex/react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { z } from 'zod';
 
@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
+  aucklandToday,
   EmptyState,
   formatMoney,
   ImportStat,
@@ -19,6 +20,7 @@ import {
   showError,
   StatusBadge,
 } from '@/features/finance/finance-ui';
+import { ImportUploadQueue, useImportUploadQueue } from '@/features/finance/import-upload-queue';
 
 import { api } from '../../../convex/_generated/api';
 import type { Id } from '../../../convex/_generated/dataModel';
@@ -70,67 +72,78 @@ function Imports({
   const commit = useMutation(api.imports.commit);
   const rollback = useMutation(api.imports.rollback);
   const resolveDuplicate = useMutation(api.imports.resolvePossibleDuplicate);
-  const [uploading, setUploading] = useState(false);
+
   const selectedId = imports?.find((entry) => entry._id === selectedImportId)?._id ?? null;
   const preview = useQuery(api.imports.preview, selectedId ? { importId: selectedId } : 'skip');
   const downloadUrl = useQuery(api.imports.sourceDownloadUrl, selectedId ? { importId: selectedId } : 'skip');
   const selected = preview?.importJob;
   const selectedAccountId = accounts?.find((account) => account._id === accountId)?._id;
 
-  async function upload(file: File) {
-    if (!/\.(ofx|xlsx)$/i.test(file.name)) return toast.error('Choose an OFX or XLSX file.');
-    setUploading(true);
-    try {
-      const url = await generateUrl();
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': file.type || 'application/octet-stream' },
-        body: file,
-      });
-      if (!response.ok) throw new Error('The file upload failed.');
-      const uploaded = z.object({ storageId: z.string().min(1) }).parse(await response.json());
-      // SAFETY: the authenticated Convex upload endpoint returned this ID; createImport validates its storage-table identity.
-      const storageId = uploaded.storageId as Id<'_storage'>;
-      const importId = await createImport({ storageId, fileName: file.name });
-      onSelectionChange({ importId, accountId: '' });
-      toast.success('File uploaded. Parsing has started.');
-    } catch (error) {
-      showError(error);
-    } finally {
-      setUploading(false);
+  useEffect(() => {
+    if (!selectedImportId && imports?.length) {
+      const next = imports.find((entry) => entry.status === 'ready') ?? imports[0];
+      onSelectionChange({ importId: next._id, accountId: '' });
     }
+  }, [imports, selectedImportId, onSelectionChange]);
+
+  async function upload(file: File) {
+    if (!/\.(ofx|xlsx)$/i.test(file.name))
+      throw new Error('Choose an OFX or XLSX bank export. Investment CSVs belong on the Investments page.');
+
+    const url = await generateUrl();
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': file.type || 'application/octet-stream' },
+      body: file,
+    });
+    if (!response.ok) throw new Error('The file upload failed.');
+    const uploaded = z.object({ storageId: z.string().min(1) }).parse(await response.json());
+    // SAFETY: the authenticated Convex upload endpoint returned this ID; createImport validates its storage-table identity.
+    const storageId = uploaded.storageId as Id<'_storage'>;
+    const importId = await createImport({ storageId, fileName: file.name });
+    return importId;
   }
+
+  const queue = useImportUploadQueue(upload);
 
   return (
     <>
       <PageHeading
         eyebrow="Source data"
         title="Imports"
-        description="Upload, review, and commit settled transactions. Original files stay private in Convex Storage for audit and rollback."
+        description="Choose one or several OFX or supported XLSX bank exports. Review the account and duplicates before committing each file. Original files stay available for audit and rollback."
         action={
           <>
             <input
               ref={fileRef}
               className="hidden"
               type="file"
+              multiple
               accept=".ofx,.xlsx"
               onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void upload(file);
+                queue.add(Array.from(event.target.files ?? []));
                 event.target.value = '';
               }}
             />
-            <Button onClick={() => fileRef.current?.click()} disabled={uploading}>
-              {uploading ? <IconLoader2 className="animate-spin" /> : <IconFileUpload />}Upload file
+            <Button onClick={() => fileRef.current?.click()} disabled={queue.uploading}>
+              {queue.uploading ? <IconLoader2 className="animate-spin" /> : <IconFileUpload />}Upload files
             </Button>
           </>
         }
+      />
+      <ImportUploadQueue
+        entries={queue.entries}
+        uploading={queue.uploading}
+        onReview={(importId) => onSelectionChange({ importId, accountId: '' })}
+        onRetry={queue.retry}
       />
       <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
         <Card>
           <CardHeader>
             <CardTitle>Import history</CardTitle>
-            <CardDescription>Newest first</CardDescription>
+            <CardDescription>
+              {imports?.filter((entry) => entry.status === 'ready').length ?? 0} files waiting for review. Newest first.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
             {imports?.length ? (
@@ -213,6 +226,40 @@ function Imports({
                     {selected.error}
                   </div>
                 )}
+                {(preview.account || selected.balanceDate) && (
+                  <div className="rounded-lg border p-4 text-sm">
+                    {preview.account && (
+                      <div>
+                        Account:{' '}
+                        <span className="font-medium">
+                          {preview.account.name} · {preview.account.mask} · {preview.account.currency}
+                        </span>
+                      </div>
+                    )}
+                    {selected.balanceDate && selected.ledgerMinor !== undefined && (
+                      <div className="mt-1">
+                        Statement balance:{' '}
+                        {new Intl.NumberFormat('en-NZ', { style: 'currency', currency: selected.currency }).format(
+                          Number(selected.ledgerMinor) / 100,
+                        )}{' '}
+                        as of {nzDate(selected.balanceDate)}.
+                      </div>
+                    )}
+                    {selected.balanceDate &&
+                      preview.account?.balanceAsOf &&
+                      selected.balanceDate < preview.account.balanceAsOf && (
+                        <p className="mt-2 text-muted-foreground">
+                          This statement is older than the latest account balance. Its transactions and historical
+                          balance will be added without replacing the newer balance.
+                        </p>
+                      )}
+                    {selected.balanceDate && selected.balanceDate > aucklandToday() && (
+                      <p className="mt-2 text-muted-foreground">
+                        The file gives a future balance date. Reports before that date will use the previous balance.
+                      </p>
+                    )}
+                  </div>
+                )}
                 {selected.totalRows > 0 && (
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                     <ImportStat label="Ready" value={selected.readyRows} />
@@ -226,7 +273,9 @@ function Imports({
                   <div className="rounded-xl border bg-muted/35 p-4">
                     <div className="mb-1 font-heading font-medium">Confirm the account</div>
                     <p className="mb-4 text-sm text-muted-foreground">
-                      Detected {selected.detectedAccountName} ({selected.detectedMask}) in {selected.currency}.
+                      Detected {selected.detectedAccountName} ({selected.detectedMask}) in {selected.currency}. Choose
+                      the existing account when this is another statement for the same account. Compare the mask and
+                      currency to avoid creating a second copy.
                     </p>
                     <div className="flex flex-col gap-2 sm:flex-row">
                       <NativeSelect

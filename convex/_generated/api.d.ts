@@ -34,6 +34,7 @@ import type * as lib_validators from "../lib/validators.js";
 import type * as mcpConnections from "../mcpConnections.js";
 import type * as mcpServer from "../mcpServer.js";
 import type * as portfolio from "../portfolio.js";
+import type * as portfolioHistory from "../portfolioHistory.js";
 import type * as portfolioTables from "../portfolioTables.js";
 import type * as profiles from "../profiles.js";
 import type * as setup from "../setup.js";
@@ -74,6 +75,7 @@ declare const fullApi: ApiFromModules<{
   mcpConnections: typeof mcpConnections;
   mcpServer: typeof mcpServer;
   portfolio: typeof portfolio;
+  portfolioHistory: typeof portfolioHistory;
   portfolioTables: typeof portfolioTables;
   profiles: typeof profiles;
   setup: typeof setup;

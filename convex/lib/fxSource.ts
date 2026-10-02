@@ -16,9 +16,10 @@ export function parsePublishedRates(payloadText: string, from: string, to: strin
   const payload: unknown = JSON.parse(payloadText);
   const rows = response.parse(payload);
   const seen = new Set<string>();
+  const earliest = new Date(Date.parse(`${from}T00:00:00Z`) - 7 * 86_400_000).toISOString().slice(0, 10);
   return rows.flatMap((row) => {
     date(row.date);
-    if (row.date < from || row.date > to || seen.has(row.date))
+    if (row.date < earliest || row.date > to || seen.has(row.date))
       throw new Error('The rate source returned duplicate or out-of-range dates.');
     seen.add(row.date);
     const rate = String(row.rate);

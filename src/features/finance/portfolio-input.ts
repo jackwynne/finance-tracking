@@ -1,3 +1,9 @@
+import type { FunctionArgs } from 'convex/server';
+
+import type { api } from '../../../convex/_generated/api';
+
+type AllocationWeight = FunctionArgs<typeof api.portfolio.saveAllocation>['weights'][number];
+
 /* eslint-disable anti-slop/no-runtime-typeof, anti-slop/no-unknown-parameters -- These functions parse uploaded JSON at the external input boundary. */
 // eslint-disable-next-line anti-slop/no-unknown-returns -- Private raw field lookup is consumed only by the typed input parsers below.
 function field(value: unknown, key: string): unknown {
@@ -16,10 +22,18 @@ export function boolField(value: unknown, key: string): boolean {
   if (typeof result !== 'boolean') throw new Error(`${key} must be true or false.`);
   return result;
 }
-export function weightsField(value: unknown): Array<{ label: string; weight: string }> {
+export function weightsField(value: unknown): Array<AllocationWeight> {
   const result = field(value, 'weights');
   if (!Array.isArray(result)) throw new Error('Weights must be an array.');
-  return result.map((row) => ({ label: stringField(row, 'label'), weight: stringField(row, 'weight') }));
+  return result.map((row) => {
+    const parsed: AllocationWeight = {
+      label: stringField(row, 'label'),
+      weight: stringField(row, 'weight'),
+    };
+    const issuerId = optionalStringField(row, 'issuerId', '');
+    if (issuerId) parsed.issuerId = issuerId;
+    return parsed;
+  });
 }
 
 export function optionalStringField(value: unknown, key: string, fallback: string): string {
