@@ -377,8 +377,8 @@
         <p>
           Build one update service for validation, preview, apply and undo. Prove its contract through file updates,
           then expose it through a personal MCP connection so routine ChatGPT updates do not require file round trips.
-          Codex can use the same contract through a CLI. Keep file download and upload as a fallback, without requiring
-          a terminal or individual transaction edits.
+          An optional CLI can later support Codex through the same contract. Keep file download and upload as a
+          fallback, without requiring a terminal or individual transaction edits.
         </p>
         <aside class="note" aria-label="Recommended first deliverable">
           <strong>Start with transaction classification</strong>
@@ -413,6 +413,23 @@
           payments are separate movements. Refunds offset spending, reimbursements need an explicit treatment, and loan
           interest remains spending. Do not classify every outgoing payment as consumption.
         </p>
+        <h3>Reporting defaults</h3>
+        <p>
+          Use booked transactions for spending. Preserve a bank's date-only posting date; convert timestamps to the
+          profile's reporting timezone, which each report records. Pending items appear separately. Refunds reduce
+          spending in the month they post, using the original category when linked. They do not rewrite the purchase
+          month. A later-month refund can make a category negative. Compare equal elapsed calendar days in that
+          timezone.
+        </p>
+        <p>
+          Convert each account's booked native amount to NZD using a sourced daily rate for its posting date. Use the
+          latest preceding published rate when that date has no rate, up to seven calendar days old. Label the fallback
+          date; older or missing rates leave an explicit unconverted amount and an incomplete combined total. Use the
+          bank's booked amount when it already converted a foreign purchase. Convert refunds at their own posting-date
+          rate, so a full native-currency refund can leave an FX difference in the combined view. Show that difference
+          when comparing linked purchases and refunds. Store the rate source, direction and policy version so reports
+          can be reproduced. Changing reporting currency must not change native ledger values.
+        </p>
         <h3>Exposure</h3>
         <p>
           Start with total recorded assets, liabilities, net worth and accessible versus retirement balances. Follow
@@ -434,6 +451,14 @@
           supplied inventory currently confirms only bank cash, ETFs and retirement funds. Unknown balances and
           unresolved fund weights remain visible. Coverage is measured separately for country, industry and asset class,
           against the full recorded asset value, not just the portion successfully classified.
+        </p>
+        <p>
+          Missing asset values make the total incomplete; list them outside the known-value denominator. Measure
+          breakdown coverage conservatively: count a holding's recorded value as resolved for a dimension only when all
+          material weights and offsets for that dimension are supported. Show partial holdings and their known
+          allocations separately. Coverage stays between 0% and 100%; signed allocation weights do not measure it. For
+          example, identified equities at 110% with an unresolved financing offset of −10% remain a partial breakdown,
+          even though the signed weights net to 100%.
         </p>
         <h3>Read-only bank feeds</h3>
         <p>
@@ -541,14 +566,15 @@
           </li>
           <li>
             Review one update summary, then apply it. Match purchase references and retained source hashes where
-            available. Cross-source duplicates, such as the same purchase in an email and a later CSV, require matching
-            by account, instrument, date, units and amount. Link supporting evidence instead of adding a second
-            purchase.
+            available. Prefer a stable provider trade reference to identify the same purchase across sources. Account,
+            instrument, date, units and amount identify candidate matches, not proof of identity: two legitimate buys
+            can have identical fields. Retain source occurrences and ask about ambiguous matches. Each source event
+            links to at most one activity record; several evidence records can support that activity.
           </li>
           <li>
             Use occasional dated statements to reconcile holdings and update KiwiSaver, Hostplus and bank balances. Add
-            new purchases to the latest verified position snapshot. A purchase amount is not a current valuation; dated
-            prices and fund disclosures refresh value and exposure separately.
+            only purchases outside the verified snapshot's stated coverage. A purchase amount is not a current
+            valuation; dated prices and fund disclosures refresh value and exposure separately.
           </li>
         </ul>
         <p>
@@ -703,10 +729,10 @@
           authorization. Review a batch once rather than asking about every classified transaction.
         </p>
         <p>
-          MCP calls the same owner-scoped service used by the app, file workflow and CLI. Keep validation, calculations,
-          durable jobs and undo in that service. Akahu sync remains a separate server-side process. The MCP server never
-          returns Akahu tokens and has no payment, trade, arbitrary SQL, shell or arbitrary URL-fetch tools. Retain
-          actor, source, timestamp and before/after values for each accepted change.
+          MCP calls the same owner-scoped service used by the app, file workflow and any optional CLI. Keep validation,
+          calculations, durable jobs and undo in that service. Akahu sync remains a separate server-side process. The
+          MCP server never returns Akahu tokens and has no payment, trade, arbitrary SQL, shell or arbitrary URL-fetch
+          tools. Retain actor, source, timestamp and before/after values for each accepted change.
         </p>
         <h3>Teach ChatGPT the routine</h3>
         <p>
@@ -1016,38 +1042,37 @@
             retaining the source of each classification.
           </li>
           <li>
-            Run an authenticated export against an explicitly selected deployment. Export the complete ledger as a
-            versioned review bundle, with a manifest, category catalogue, merchant groups and numbered transaction
-            chunks. Include representative evidence in the merchant groups as well as every transaction in the chunks.
+            Download a versioned review bundle from Koru's Updates screen for the selected task and accounts. Include a
+            manifest, category catalogue, merchant groups and numbered transaction chunks. A full-ledger review includes
+            every transaction; a bounded task states its filters, dates and completeness.
           </li>
           <li>
-            Codex reads the bundle and writes a proposals file containing only decisions. Each proposal can set a
+            ChatGPT reads the bundle and returns a proposals file containing only decisions. Each proposal can set a
             merchant default, classify explicit transaction IDs, propose an alias merge, propose a split or reporting
             treatment, or leave an item unresolved with one specific question.
           </li>
           <li>
-            Validate the proposals locally, then run a server-side dry run against the same deployment. Write a preview
-            report to a file containing affected counts, before/after values, explanations, conflicts and unresolved
-            questions. Review that file in Codex. No financial records change during this step.
+            Upload the proposals to Updates. Validate them on the server and show affected counts, before/after values,
+            reporting effects, conflicts and unresolved questions. Offer a downloadable preview for discussion with
+            ChatGPT. No accepted financial records change during this step.
           </li>
           <li>
-            Apply the reviewed proposal file through an authenticated, idempotent batch job. Save an apply receipt with
-            job ID, accepted/rejected counts and an undo reference. Undo is also callable from the file workflow and
+            Apply the exact reviewed preview in Koru through an authenticated, idempotent job. Keep its receipt,
+            progress and undo control in Updates. A page reload or interrupted conversation can resume by job ID. Undo
             checks for edits made after apply.
           </li>
         </ol>
         <p>
-          Use a small Node CLI around the same owner-scoped Convex functions that an optional upload/download screen
-          would call. Commands should select the deployment explicitly and derive the owner from authentication, rather
-          than trusting an owner ID in the file. Keep authentication outside the exported bundle. A production bundle
-          must be rejected by another deployment even if IDs happen to match. Read-only commands may run immediately; an
-          apply command must reference the exact file hash and dry-run result reviewed by the user. This review does not
-          introduce a production write or reset.
+          The download/upload/review screen is required for the fallback; no terminal or Codex session is needed. An
+          optional Node CLI can later call the same service for developer use. Both routes derive the owner from
+          authentication and bind bundles to their deployment. Keep authentication outside the bundle. Reject a bundle
+          from another deployment even if IDs match. Apply references the reviewed preview hash, including source and
+          record revisions, rule versions and any FX inputs affecting its reporting effects.
         </p>
         <p>
           The proposed file layout is <code>manifest.json</code>, <code>categories.json</code>,
-          <code>merchants.ndjson</code> and <code>transactions-0001.ndjson</code> onward. Codex returns
-          <code>proposals.ndjson</code> and <code>questions.md</code>. The CLI writes <code>preview.json</code> and
+          <code>merchants.ndjson</code> and <code>transactions-0001.ndjson</code> onward. ChatGPT returns
+          <code>proposals.ndjson</code> and <code>questions.md</code>. Koru offers <code>preview.json</code> and
           <code>apply-receipt.json</code>. These are planned contracts, not commands already implemented. The manifest
           records contract version, deployment identity, owner/export identity, counts and chunk hashes. Every
           transaction keeps its revision so applying an old file cannot overwrite a later manual correction.
@@ -1056,7 +1081,7 @@
           The input must include stable IDs, a bundle ID, record revisions, category definitions and examples, signed
           amounts serialized as decimal strings, currencies, dates, account labels, raw descriptions and existing
           classification provenance. Merchant examples help triage, but they must not replace the full transaction
-          export. Mask account identifiers and omit authentication credentials.
+          export for a full-ledger review. Mask account identifiers and omit authentication credentials.
         </p>
         <p>
           Include category definitions and examples in the file contract. Accept catalogue changes as explicit
@@ -1068,8 +1093,8 @@
         <p>
           The response must refer to IDs from that bundle and include a rationale and confidence level. Confidence is a
           review aid, not proof that a category is correct. Omitted items remain unchanged. An unresolved proposal is
-          distinct from an intentional request to clear a category. Do not require Codex to repeat or reorder the entire
-          input document.
+          distinct from an intentional request to clear a category. Do not require ChatGPT to repeat or reorder the
+          entire input document.
         </p>
         <p>
           Each proposal must state its scope explicitly: one transaction, listed transactions, unclassified matches, or
@@ -1090,11 +1115,19 @@
           edits.
         </p>
         <p>
-          Add a project classification skill after this file contract is implemented. It should tell Codex how to read
-          the bundle, use the category catalogue, produce validated proposals and list unresolved questions. A small
-          local validator should check the response before server-side dry run and apply. Test the file round trip on an
-          isolated deployment first, then export from production. Production classification uses the current ledger,
-          with no reset or reimport required.
+          Apply related changes as one bounded atomic group: both transfer legs and their link, a transaction and all
+          its splits, or both sides of a fund switch and their evidence links. Recheck every member's revision and
+          commit the group in one database transaction. A conflict rejects the whole group without changing a member.
+          Independent classifications can be separate groups in a durable job and succeed independently. Preview and
+          receipts show these boundaries and counts. Undo uses the same groups and leaves the whole group unchanged when
+          any member has a subsequent conflicting edit. Test a stale transfer leg and a stale split member, not just
+          independent rows.
+        </p>
+        <p>
+          Include ChatGPT instructions and examples in the bundle; reuse them in the later personal workflow skill.
+          Server validation is authoritative. Test the complete file round trip in an isolated deployment, including
+          download, upload, preview, apply, reload and undo through the UI. Production classification uses the current
+          ledger, with no reset or reimport required.
         </p>
         <h2 id="a-portfolio-model-that-supports-real-holdings">A portfolio model that supports real holdings</h2>
         <p>
@@ -1163,10 +1196,20 @@
           </table>
         </div>
         <p>
-          Calculate positions from a statement snapshot plus subsequent activity, or a complete activity history.
+          Calculate positions from a statement snapshot plus uncovered activity, or a complete activity history.
           Reconcile against provider running balances. Do not sum the latest 500 transactions or assume an incomplete
           history starts at zero. A Simplicity export without a fund column must ask which fund and account it belongs
           to. A file spanning a fund switch requires a switch date or separate mappings.
+        </p>
+        <p>
+          Each position snapshot states its account, instrument, effective cutoff, trade-date or settlement-date basis,
+          and which activity it includes. Select the latest verified snapshot eligible for the requested date and replay
+          only activity outside that coverage on the same basis. A date-only statement with unclear same-day coverage
+          creates a reconciliation question; do not assume it precedes or includes those buys. A newer statement rebases
+          the calculation without deleting activity or adding it twice. Import order must not change the result. Verify
+          that an opening 100 units plus a 10-unit buy gives 110, then a later statement including that buy keeps 110
+          whether the statement or email arrives first. Also verify two identical buys remain two buys, while one buy
+          evidenced by two sources remains one.
         </p>
         <p>
           Use exact decimal arithmetic for units, prices and weights. Retain integer minor units for money and round at
@@ -1181,11 +1224,25 @@
           net worth.
         </p>
         <p>
+          For an as-of valuation, select the latest eligible price or manual balance on or before that date and show its
+          age. Convert native values at the report date using the same sourced-rate fallback limit as spending. Never
+          use future prices or FX. Current valuations may use the latest available evidence; label stale inputs and
+          unknown values. An undated screenshot is a draft inventory, not a dated opening balance.
+        </p>
+        <p>
           Link bank investment payments to investment contributions when possible, so they are not counted twice.
           Employee KiwiSaver deductions must not be deducted from imported net salary again. Employer contributions
           belong in the investment activity view without becoming ordinary bank income.
         </p>
         <h2 id="getting-the-underlying-investments">Getting the underlying investments</h2>
+        <p>
+          Deliver broad exposure before automated full-holdings downloads. Accept manually uploaded official dated
+          country, industry and asset-class breakdowns for each owned fund, including Hostplus. Record whether weights
+          describe actual holdings or target allocations and what they exclude. Targets appear as estimates, not
+          resolved actual exposure. Bank cash needs no fund adapter. Missing dimensions stay unresolved without
+          preventing a useful view of the supported ones. These sourced allocations use the same review service as later
+          automated imports.
+        </p>
         <p>
           Provider research supports the following starting routes. The exact current files and automated download
           methods still need a short implementation spike; this review did not establish stable public APIs for every
@@ -1331,6 +1388,13 @@
         </p>
         <h2 id="calculating-exposure-and-overlap">Calculating exposure and overlap</h2>
         <p>
+          The first view multiplies each asset's recorded value by its supported dated country, industry and asset-class
+          weights. These are separate breakdowns. Country and industry totals alone cannot answer a joint question such
+          as US technology exposure: do not multiply their marginal percentages. Require constituent-level or explicitly
+          joint source data for combined filters. Start with holdings, three allocation views, unresolved values and
+          source drilldown. Company overlap is a later extension.
+        </p>
+        <p>
           For each holding, multiply its portfolio value by every fund weight along the path to the underlying asset.
           Sum all paths to a company across Smart funds, KiwiSaver and other holdings.
         </p>
@@ -1361,8 +1425,8 @@
           <li>What is accessible now, and what is in KiwiSaver or super?</li>
         </ul>
         <p>
-          Start with a holdings table, allocation bars and a searchable company table. Clicking a company should show
-          every contributing fund and its calculation. Add a map only if it helps answer a question the table cannot.
+          When company detail is added, provide a searchable company table. Clicking a company should show every
+          contributing fund and its calculation. Add a map only if it helps answer a question the table cannot.
         </p>
         <h2 id="implementation-order-and-completion-checks">Implementation order and completion checks</h2>
         <div class="table-wrap">
@@ -1376,83 +1440,132 @@
             </thead>
             <tbody>
               <tr>
-                <td data-label="Slice">1</td>
+                <td data-label="Slice">1 · Spending correctness</td>
                 <td data-label="Work">
-                  Correct transaction/default scope, rollback batching, classification provenance, transfer review,
-                  unresolved filters and report labels. Investigate duplicate account identity. Fix baseline lint,
-                  validate monetary parsing, and replace silent read caps.
+                  Correct transaction/default scope, rollback batching, duplicate account identity, classification
+                  provenance and silent read caps. Implement the booked-date, refund and FX policies. Show transfer
+                  review, unresolved amounts and coverage.
                 </td>
                 <td data-label="Done when">
-                  One-off edits preserve future defaults; defaults can explicitly update history; rollback clears every
-                  batch; transfers require review; unresolved rows are filterable; balances are counted once and show
-                  currency, dates and coverage.
+                  One-off edits preserve defaults and manual exceptions. Rollback clears more than one batch. Both
+                  currencies reconcile to fixtures, including month-end timestamps, later-month refunds, missing FX and
+                  a cross-currency transfer with a fee. Existing lint failures are measured against a fresh baseline;
+                  changed code passes the required checks.
                 </td>
               </tr>
               <tr>
-                <td data-label="Slice">2</td>
+                <td data-label="Slice">2 · ChatGPT file updates</td>
                 <td data-label="Work">
-                  Implement ChatGPT update packs, download/upload, preview/apply/undo and durable jobs. Include category
-                  definitions and confirmed rules. Support Codex through an authenticated
-                  export/validate/dry-run/apply/undo CLI using the same service. Add the selected Akahu ANZ feed with
-                  daily sync and file-import reconciliation. Expose spending reads and the shared update service through
-                  a personal MCP connection with a workflow skill. Add a review queue for exceptions.
+                  Build the shared owner-scoped proposal service and required Updates download/upload,
+                  preview/apply/undo screens. Include category definitions, confirmed rules, evidence, atomic groups,
+                  durable jobs and an exception queue. CLI support is optional.
                 </td>
                 <td data-label="Done when">
-                  A ledger can be exported in chunks, classified in ChatGPT, reviewed and applied without individual UI
-                  edits or lost manual decisions. Retries and an interrupted batch do not duplicate changes. Every
-                  unresolved transaction remains visible. The Akahu feed reconciles to ANZ evidence, preserves
-                  classifications and handles revoked consent. CommBank remains supported through exports. ChatGPT can
-                  read spending, stage a classification batch, preview, apply and undo through the authenticated
-                  connection without a file round trip.
+                  Classify a ledger in ChatGPT and apply it in Koru without a terminal or individual edits. Test
+                  download through undo, page reload, interrupted apply, retries, stale previews and whole-group
+                  conflicts. No manual decisions are lost. The file fallback works without Akahu or MCP.
                 </td>
               </tr>
               <tr>
-                <td data-label="Slice">3</td>
+                <td data-label="Slice">3 · All-asset balances</td>
                 <td data-label="Work">
-                  Add instrument identity, dated balances for all assets and debts, statement/opening positions,
-                  purchase-email proposals, fund-switch mapping, exact calculations, manual prices and AUD/NZD
-                  valuation.
+                  Add instrument identity, dated statement/opening positions, manual asset and debt balances, exact
+                  arithmetic and NZD/AUD valuation. Record snapshot cutoffs and reconciliation status.
                 </td>
                 <td data-label="Done when">
-                  Both bank balances, Smart, KiwiSaver and Hostplus can be recorded and reconciled. An email purchase
-                  advances a verified position once, including when later repeated in a CSV. Partial history and unknown
-                  values are shown clearly. Other assets and debts can be added. Net worth includes each asset once.
+                  ANZ, CommBank, Smart, KiwiSaver and Hostplus can be recorded once with source dates and original
+                  currencies. Property, other assets and debts can be added if present. Unknown values are listed,
+                  retirement access is separate from asset class, and net worth reconciles to the supplied evidence.
                 </td>
               </tr>
               <tr>
-                <td data-label="Slice">4</td>
+                <td data-label="Slice">4 · Broad exposure</td>
                 <td data-label="Work">
-                  Prove one complete source snapshot for each provider path, then import all current owned funds. Build
-                  adapters, raw-source retention and manual upload.
+                  Add sourced manual country, industry and asset-class breakdowns, including available Hostplus
+                  disclosures. Show three allocation views, coverage and source detail. No automated adapter or
+                  company-overlap view is required.
                 </td>
                 <td data-label="Done when">
-                  TWF to VT, USG to VUG, EUF to VGK, UST to iShares, MDZ and Simplicity have verified identities and
-                  dated snapshots. Unknown constituents and cash/hedge exclusions are accounted for.
+                  Hand-calculated examples reconcile across all recorded assets. Missing dimensions, stale sources,
+                  target estimates and signed offsets remain visible. Coverage never exceeds 100%. Separate country and
+                  industry weights do not enable unsupported joint filters.
                 </td>
               </tr>
               <tr>
-                <td data-label="Slice">5</td>
+                <td data-label="Slice">5 · Purchase-email updates</td>
                 <td data-label="Work">
-                  Add recursive exposure, company aggregation, source drilldown and concentration/overlap views.
+                  Extend the shared file and proposal contract to buys and position reconciliation. Preserve source
+                  occurrences, stable trade references, snapshot coverage and ambiguous matches. Add explicit
+                  fund-switch mapping.
                 </td>
                 <td data-label="Done when">
-                  Hand-calculated fixtures reconcile; shared companies sum correctly; nested funds, incomplete data,
-                  signed weights and different source dates display correctly.
+                  An email advances a verified position once. A later statement including that buy leaves units
+                  unchanged in either import order. Two identical legitimate buys remain distinct; one buy in two
+                  sources remains one. Unclear same-day statement coverage asks for reconciliation.
                 </td>
               </tr>
               <tr>
-                <td data-label="Slice">6</td>
+                <td data-label="Slice">6 · Akahu ANZ feed</td>
                 <td data-label="Work">
-                  Add scheduled refreshes, historical snapshots, Hostplus composition and investment performance.
+                  After confirming official ANZ connectivity for the personal tier, add server-side account-data sync,
+                  account matching, all-page imports, daily polling and export reconciliation. CommBank keeps file
+                  exports.
                 </td>
                 <td data-label="Done when">
-                  A failed refresh preserves published data. Provider layout changes are tested. Performance separates
-                  contributions from gains and states whether it is before or after tax/fees.
+                  ANZ balance and sampled transactions reconcile to bank evidence. Repeat syncs and overlapping exports
+                  add no duplicates or lost classifications. Consent revocation stops new imports; errors preserve data;
+                  client responses and update packs contain no tokens. If eligibility fails, the file workflow remains
+                  usable.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Slice">7 · MCP reads and proposals</td>
+                <td data-label="Work">
+                  Confirm developer-mode availability and OAuth compatibility. Expose current context, paginated
+                  spending/evidence reads and staged proposals through the personal Koru connection. Package the
+                  spending workflow skill. Add exposure reads when slice 4 is ready.
+                </td>
+                <td data-label="Done when">
+                  ChatGPT on the user&#x27;s actual account can read complete spending summaries and stage a batch for
+                  review in Koru. Verify owner isolation, expired tokens, pagination and source uploads. Label fixture
+                  versus signed-in results. Apply remains available through Koru during this milestone.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Slice">8 · MCP apply and undo</td>
+                <td data-label="Work">
+                  Enable reviewed apply, durable progress and undo through the same service. Extend tools and the skill
+                  to the portfolio operations already proven through files.
+                </td>
+                <td data-label="Done when">
+                  The selected client can authorize an exact preview, apply once, resume by job ID and undo without a
+                  file round trip. Stale previews and conflicting atomic groups leave affected groups unchanged. No
+                  payment, trade or credential capability exists.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Slice">9 · Optional depth and automation</td>
+                <td data-label="Work">
+                  Prioritize provider adapters individually by asset value and missing coverage. Add recursive holdings,
+                  company overlap, scheduled refreshes and historical reporting only as useful. Performance and a
+                  developer CLI are separate optional work.
+                </td>
+                <td data-label="Done when">
+                  Each enabled adapter has one verified real download plus sanitized fixtures and manual fallback.
+                  Failed refreshes preserve published data. Nested calculations reconcile, cycles and offsets are
+                  visible, and historical views use eligible dated inputs. Performance separates contributions from
+                  gains.
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
+        <p>
+          Before integration work, check Akahu eligibility, ChatGPT developer-mode access and OAuth support. These
+          checks do not block the first file-based deliverable. Slices 3–5 build the asset view; slices 6–8 can follow
+          slice 2 independently. Slice 8 requires slice 7. Broad exposure requires dated balances and sourced
+          breakdowns, not every provider adapter.
+        </p>
         <p>
           Build each slice as a focused change and run the relevant checks. Tests should cover the financial rules and
           import/review contracts, using Convex&#x27;s actual test helpers and sanitized provider fixtures. Verify one
@@ -1469,6 +1582,85 @@
           broad cosmetic redesign. They do not unlock the selected workflow.
         </p>
         <h2 id="review-verification-and-remaining-limits">Review verification and remaining limits</h2>
+        <h3>Plan review on 2 October 2026</h3>
+        <p>
+          Intent: let ChatGPT outside Koru maintain records for broad spending and all-asset exposure, using copied
+          evidence and read-only feeds. Commit the initial plan, review its assumptions, then refine the plan without
+          implementing account connections or changing financial records. The initial plan is preserved in commit
+          <code>936db46</code>.
+        </p>
+        <p>
+          Interrogate produced two independent reviews: Reviewer A, GPT-6.1 Sol, five findings; Reviewer B, GPT-6.1 Sol,
+          five findings. The configured Luna reviewer was unavailable, so repository policy selected the parent model
+          for both. This was an independent same-model review, not a multi-model review.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Act on</th>
+                <th scope="col">Reviewers and resolution</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-label="Act on">Delivery scope and file fallback</td>
+                <td data-label="Reviewers and resolution">
+                  A and B: the first milestone bundled multiple integrations and the detailed fallback depended on Codex
+                  and a CLI. Require the Koru file UI, make CLI optional and give Akahu and MCP separate gates.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Act on">Purchase identity</td>
+                <td data-label="Reviewers and resolution">
+                  A: matching identical trade fields could remove legitimate buys. Prefer stable references, retain
+                  source occurrences and review ambiguous candidate matches.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Act on">Statement boundaries</td>
+                <td data-label="Reviewers and resolution">
+                  A and B: a statement could include a buy that an email adds again. Store cutoff and coverage basis,
+                  replay only uncovered activity and verify both import orders.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Act on">Spending periods and FX</td>
+                <td data-label="Reviewers and resolution">
+                  A and B: undefined date, refund and fallback policies permit inconsistent totals. Specify booked
+                  dates, reporting timezone, refund month, sourced daily FX and a bounded preceding-rate fallback.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Act on">Related changes</td>
+                <td data-label="Reviewers and resolution">
+                  A: partial acceptance could leave a transfer, split or switch incomplete. Apply and undo bounded
+                  atomic groups; independent groups can progress separately.
+                </td>
+              </tr>
+              <tr>
+                <td data-label="Act on">Coverage with signed weights</td>
+                <td data-label="Reviewers and resolution">
+                  B: net weights summing to 100% do not prove complete classification. Measure resolved holding value
+                  separately from signed allocation, with partial holdings visible.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>
+          Consider: B also suggested bringing manual Hostplus breakdowns forward. Adopted for the first broad exposure
+          view; provider automation and company overlap remain optional later work. Noted: the undated screenshot and
+          Hostplus conversion still need statement evidence, and Akahu and ChatGPT availability remain implementation
+          gates. Dismissed: no correctness findings were rejected. Agreement: both reviewers identified excessive
+          delivery scope and missing statement and FX rules. Purchase identity, atomic grouping and signed coverage were
+          raised by one reviewer each and accepted after checking the plan. There was no direct disagreement.
+        </p>
+        <p>
+          Documentation verification covers formatting, internal links and desktop/mobile rendering. The completion
+          checks above are requirements for future implementation; this review does not prove those financial rules run
+          in the app.
+        </p>
         <p>
           On 2 October 2026, the direction update reviewed the current schema, dashboard, investment activity screen and
           classification file parser. The screenshot's value sum and USG weight were checked with decimal arithmetic.
@@ -1482,7 +1674,7 @@
           </li>
           <li>
             <code>pnpm lint</code> reached Oxlint after TypeScript and failed with 30 errors and 10 warnings, mainly in
-            UI components. These are baseline findings.
+            UI components. These describe the 30 September baseline, not the current lint result.
           </li>
           <li><code>pnpm build</code> and <code>pnpm exec tsc -p convex/tsconfig.json</code> passed.</li>
           <li>
@@ -1508,8 +1700,8 @@
           </li>
         </ul>
         <p>
-          The first implementation deliverable should be slices 1 and 2. They solve the classification problem, connect
-          the ANZ feed and provide ChatGPT with spending review tools before the portfolio work expands.
+          The first implementation deliverable should be slices 1 and 2. They deliver correct spending and a usable
+          ChatGPT file round trip. Akahu and MCP each have their own later completion gate.
         </p>
         <p>
           Include the rollback fix in slice 1. Its regression check must import more than one batch, roll back every
