@@ -18,4 +18,5 @@ Convex agent skills for common tasks can be installed by running
 - For delegated workflows, read [.agents/pstack-models.md](.agents/pstack-models.md) and use the active runtime's supported tools and models. User-selected models take precedence.
 - Apply [TypeScript best practices](.agents/skills/typescript-best-practices/SKILL.md) when reading or editing TypeScript. Its supporting [type system discipline](.agents/skills/principle-type-system-discipline/SKILL.md) and [boundary discipline](.agents/skills/principle-boundary-discipline/SKILL.md) skills are included locally.
 - Apply [unslop](.agents/skills/unslop/SKILL.md) to app copy, documentation, and responses.
+- The `anti-slop` Oxlint plugin is in [tools/oxlint/anti-slop](tools/oxlint/anti-slop) and runs with `pnpm lint`. Verify rule changes with `pnpm test:lint`.
 - The transaction and portfolio review and implementation plan is in [docs/improvement-plan.html](docs/improvement-plan.html).

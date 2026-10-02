@@ -20,7 +20,8 @@
     "format:check": "oxfmt --check .",
     "lint": "tsc && oxlint . --deny-warnings --report-unused-disable-directives",
     "lint:fix": "oxlint . --fix --deny-warnings --report-unused-disable-directives",
-    "test": "vitest run"
+    "test": "vitest run && node --test tools/oxlint/anti-slop/verify.node-test.mjs",
+    "test:lint": "node --test tools/oxlint/anti-slop/verify.node-test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -58,6 +59,7 @@
   "devDependencies": {
     "@convex-dev/eslint-plugin": "^2.0.0",
     "@edge-runtime/vm": "^5.0.0",
+    "@oxlint/plugins": "1.74.0",
     "@tailwindcss/postcss": "^4.3.3",
     "@tanstack/react-router-devtools": "^1.167.0",
     "@types/node": "^24.13.3",
