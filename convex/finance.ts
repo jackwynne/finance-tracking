@@ -264,7 +264,7 @@ export const updateTransaction = mutation({
       args.counterpartyId === null ? undefined : (args.counterpartyId ?? transaction.counterpartyId);
     if (args.scope !== 'transaction' && counterpartyId && args.categoryId) {
       await ctx.db.patch('counterparties', counterpartyId, { defaultCategoryId: args.categoryId });
-      if (args.scope !== 'transaction') {
+      {
         const matches = await ctx.db
           .query('transactions')
           .withIndex('by_ownerId_and_counterpartyId_and_postedDate', (q) =>

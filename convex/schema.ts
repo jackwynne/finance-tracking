@@ -1,6 +1,9 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { connectionTables } from './connectionTables';
+import { portfolioTables } from './portfolioTables';
+import { updateTables } from './updateTables';
 
 const accountType = v.union(
   v.literal('checking'),
@@ -36,6 +39,9 @@ const investmentImportStatus = v.union(
 const investmentImportFormat = v.union(v.literal('shareRegistryCsv'), v.literal('fundCsv'));
 
 export default defineSchema({
+  ...portfolioTables,
+  ...updateTables,
+  ...connectionTables,
   profiles: defineTable({
     tokenIdentifier: v.string(),
     email: v.optional(v.string()),
