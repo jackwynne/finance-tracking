@@ -269,6 +269,8 @@ export default defineSchema({
 
   investmentAccounts: defineTable({
     ownerId: v.id('profiles'),
+    performancePositionId: v.optional(v.id('portfolioPositions')),
+    performanceZeroOpening: v.optional(v.boolean()),
     name: v.string(),
     provider: v.string(),
     currency: v.string(),

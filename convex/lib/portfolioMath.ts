@@ -108,7 +108,12 @@ export function stockExposure({
       investmentsValue += value;
       const allocation = allocations
         .filter(
-          (a) => a.dimension === 'stock' && a.instrument === row.instrument && a.kind !== 'target' && a.date <= asOf,
+          (a) =>
+            a.dimension === 'stock' &&
+            a.instrument === row.instrument &&
+            a.kind !== 'target' &&
+            a.kind !== 'assumption' &&
+            a.date <= asOf,
         )
         .sort((a, b) => b.date.localeCompare(a.date) || b._creationTime - a._creationTime)
         .at(0);
@@ -211,7 +216,11 @@ export function equityExposure({
       const allocation = allocations
         .filter(
           (a) =>
-            a.instrument === row.instrument && a.dimension === 'assetClass' && a.kind !== 'target' && a.date <= asOf,
+            a.instrument === row.instrument &&
+            a.dimension === 'assetClass' &&
+            a.kind !== 'target' &&
+            a.kind !== 'assumption' &&
+            a.date <= asOf,
         )
         .sort((a, b) => b.date.localeCompare(a.date) || b._creationTime - a._creationTime)
         .at(0);

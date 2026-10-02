@@ -773,3 +773,234 @@ test('asset filters recompute exposure without inventing country and equity inte
   const empty = await owner.query(api.portfolio.getExposure, { asOf: source.date, currency: 'NZD', positionIds: [] });
   expect(empty).toMatchObject({ rows: [], gross: '0', equitySummary: { value: '0' }, stockExposure: { stocks: [] } });
 });
+
+test('each breakdown reports per-fund disclosure gaps without letting gross leverage hide another fund', async () => {
+  const t = convexTest(schema, modules);
+  const owner = t.withIdentity({ tokenIdentifier: 'test|disclosure-gaps', subject: 'disclosure-gaps', issuer: 'test' });
+  await owner.mutation(api.profiles.ensureCurrent, {});
+  await owner.mutation(api.portfolio.savePosition, position);
+  for (const instrument of ['LEVERAGED', 'SIGNED', 'MISSING'])
+    await owner.mutation(api.portfolio.savePosition, { ...position, key: instrument, instrument });
+  const source = {
+    dimension: 'country' as const,
+    date: '2026-08-31',
+    source: 'Official country disclosure',
+    evidence: 'Net asset weights',
+    complete: false,
+  };
+  await owner.mutation(api.portfolio.saveAllocation, {
+    ...source,
+    instrument: position.instrument,
+    weights: [{ label: 'United States', weight: '0.4' }],
+  });
+  await owner.mutation(api.portfolio.saveAllocation, {
+    ...source,
+    instrument: 'LEVERAGED',
+    weights: [{ label: 'United States', weight: '1.1' }],
+  });
+  await owner.mutation(api.portfolio.saveAllocation, {
+    ...source,
+    instrument: 'SIGNED',
+    complete: true,
+    weights: [
+      { label: 'United States', weight: '1.1' },
+      { label: 'Financing offset', weight: '-0.1' },
+    ],
+  });
+  const summary = await owner.query(api.portfolio.getExposure, { asOf: '2026-09-01', currency: 'NZD' });
+  const country = summary.breakdowns.find((row) => row.dimension === 'country');
+  expect(country).toMatchObject({
+    reportedValue: '250',
+    unmappedValue: '160',
+    covered: '100',
+    unresolved: '300',
+    reportedPercent: '62.5',
+  });
+  expect(country?.sources.find((row) => row.instrument === position.instrument)).toMatchObject({
+    value: '100',
+    reportedWeight: '0.4',
+    reportedValue: '40',
+    unmappedValue: '60',
+    status: 'partial',
+    allocationDate: source.date,
+    source: source.source,
+    evidence: source.evidence,
+    hasSignedOffsets: false,
+    grossExposure: false,
+  });
+  expect(country?.sources.find((row) => row.instrument === 'LEVERAGED')).toMatchObject({
+    reportedValue: '110',
+    unmappedValue: '0',
+    status: 'partial',
+    grossExposure: true,
+    hasSignedOffsets: false,
+  });
+  expect(country?.sources.find((row) => row.instrument === 'SIGNED')).toMatchObject({
+    reportedValue: '100',
+    unmappedValue: '0',
+    status: 'complete',
+    grossExposure: true,
+    hasSignedOffsets: true,
+  });
+  expect(country?.sources.find((row) => row.instrument === 'MISSING')).toMatchObject({
+    reportedWeight: '0',
+    reportedValue: '0',
+    unmappedValue: '100',
+    status: 'missing',
+    allocationDate: null,
+    source: null,
+    evidence: null,
+  });
+});
+
+test('reviewed country assumptions fill only residual exposure, remain distinct and undo cleanly', async () => {
+  const t = convexTest(schema, modules);
+  const owner = t.withIdentity({
+    tokenIdentifier: 'test|country-assumptions',
+    subject: 'country-assumptions',
+    issuer: 'test',
+  });
+  await owner.mutation(api.profiles.ensureCurrent, {});
+  for (const instrument of [position.instrument, 'MISSING', 'LEVERAGED'])
+    await owner.mutation(api.portfolio.savePosition, { ...position, key: instrument, instrument });
+  const source = {
+    dimension: 'country' as const,
+    date: '2026-09-01',
+    source: 'Actual provider holdings',
+    evidence: 'Partial observed country weights',
+    complete: false,
+  };
+  await owner.mutation(api.portfolio.saveAllocation, {
+    ...source,
+    instrument: position.instrument,
+    weights: [{ label: 'United States', weight: '0.4' }],
+  });
+  await owner.mutation(api.portfolio.saveAllocation, {
+    ...source,
+    instrument: 'LEVERAGED',
+    weights: [{ label: 'United States', weight: '1.1' }],
+  });
+  const assumption = {
+    ...source,
+    kind: 'assumption' as const,
+    date: '2026-09-02',
+    source: 'User fund-country default',
+    evidence: 'Assign only unknown residual to New Zealand; not a provider disclosure',
+    weights: [{ label: 'New Zealand', weight: '1' }],
+  };
+  await expect(
+    owner.mutation(api.portfolio.saveAllocation, { ...assumption, instrument: 'MISSING', complete: true }),
+  ).rejects.toThrow('Country assumptions');
+  await expect(
+    owner.mutation(api.portfolio.saveAllocation, { ...assumption, instrument: 'MISSING', dimension: 'industry' }),
+  ).rejects.toThrow('Country assumptions');
+  await expect(
+    owner.mutation(api.portfolio.saveAllocation, {
+      ...assumption,
+      instrument: 'MISSING',
+      weights: [{ label: 'New Zealand', weight: '0.5' }],
+    }),
+  ).rejects.toThrow('Country assumptions');
+  await expect(
+    owner.mutation(api.portfolio.saveAllocation, {
+      ...assumption,
+      instrument: 'MISSING',
+      weights: [
+        { label: 'New Zealand', weight: '1.1' },
+        { label: 'Australia', weight: '-0.1' },
+      ],
+    }),
+  ).rejects.toThrow('Country assumptions');
+  await owner.mutation(api.portfolio.saveAllocation, {
+    ...assumption,
+    instrument: 'MISSING',
+    date: '2026-10-01',
+    weights: [{ label: 'Australia', weight: '1' }],
+  });
+  const context = await owner.query(api.updates.getContext, {});
+  const groups = [position.instrument, 'MISSING', 'LEVERAGED'].map((instrument) => {
+    const expectedRevision = context.portfolio.instrumentRevisions.find(
+      (row) => row.instrument === instrument,
+    )?.revision;
+    if (!expectedRevision) throw new Error('Missing instrument revision');
+    return {
+      kind: 'portfolioAllocation' as const,
+      expectedRevision,
+      reason: 'User requested residual country defaults',
+      value: { ...assumption, instrument },
+    };
+  });
+  const jobId = await owner.mutation(api.updates.stage, {
+    version: 1,
+    deployment: context.deployment,
+    ownerId: context.ownerId,
+    clientKey: 'country-assumption-job',
+    title: 'Country defaults',
+    questions: [],
+    sources: [assumption.source],
+    groups,
+  });
+  const preview = await owner.query(api.updates.preview, { jobId });
+  await owner.mutation(api.updates.apply, { jobId, previewHash: preview.previewHash });
+  await owner.mutation(api.updates.apply, { jobId, previewHash: preview.previewHash });
+  const before = await owner.query(api.portfolio.getExposure, { asOf: '2026-09-01', currency: 'NZD' });
+  expect(before.breakdowns.find((row) => row.dimension === 'country')?.assumedValue).toBe('0');
+  const summary = await owner.query(api.portfolio.getExposure, { asOf: '2026-09-02', currency: 'NZD' });
+  expect(summary.gross).toBe('300');
+  const country = summary.breakdowns.find((row) => row.dimension === 'country');
+  expect(country).toMatchObject({
+    reportedValue: '150',
+    assumedValue: '160',
+    attributedValue: '310',
+    unmappedValue: '160',
+    remainingUnmappedValue: '0',
+    covered: '0',
+    unresolved: '300',
+  });
+  expect(country?.sources.find((row) => row.instrument === position.instrument)).toMatchObject({
+    status: 'partial',
+    reportedValue: '40',
+    assumedValue: '60',
+    unmappedValue: '60',
+    remainingUnmappedValue: '0',
+    assumptionDate: assumption.date,
+    assumptionSource: assumption.source,
+  });
+  expect(country?.sources.find((row) => row.instrument === 'MISSING')).toMatchObject({
+    status: 'missing',
+    reportedValue: '0',
+    assumedValue: '100',
+    allocationDate: null,
+    source: null,
+  });
+  expect(country?.sources.find((row) => row.instrument === 'LEVERAGED')?.assumedValue).toBe('0');
+  expect(
+    country?.allocations
+      .find((row) => row.label === 'New Zealand')
+      ?.contributions.find((row) => row.instrument === position.instrument),
+  ).toMatchObject({ basis: 'assumed', value: '60', weight: '0.6', source: assumption.source });
+  expect(
+    country?.allocations
+      .find((row) => row.label === 'United States')
+      ?.contributions.every((row) => row.basis === 'disclosed'),
+  ).toBe(true);
+  const disabled = await owner.query(api.portfolio.getExposure, {
+    asOf: '2026-09-02',
+    currency: 'NZD',
+    includeAssumptions: false,
+  });
+  expect(disabled.breakdowns.find((row) => row.dimension === 'country')).toMatchObject({
+    assumedValue: '0',
+    remainingUnmappedValue: '160',
+    attributedValue: '150',
+  });
+  expect(disabled.breakdowns.find((row) => row.dimension === 'country')?.sources[0].assumptionSource).toBe(
+    assumption.source,
+  );
+  await owner.mutation(api.updates.undo, { jobId, previewHash: preview.previewHash });
+  expect(
+    (await owner.query(api.portfolio.getExposure, { asOf: '2026-09-02', currency: 'NZD' })).breakdowns.find(
+      (row) => row.dimension === 'country',
+    )?.assumedValue,
+  ).toBe('0');
+});

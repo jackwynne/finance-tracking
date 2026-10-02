@@ -1,4 +1,4 @@
-import { barX, barY, defineChart, dot } from '@tanstack/charts';
+import { areaY, barX, barY, defineChart, differenceY, dot } from '@tanstack/charts';
 import { Chart } from '@tanstack/charts/react';
 import { scaleBand } from '@tanstack/charts/scales/band';
 import { scaleLinear } from '@tanstack/charts/scales/linear';
@@ -86,4 +86,81 @@ export function FinanceObservationChart({
     [points, formatValue],
   );
   return <Chart definition={definition} height={280} ariaLabel={title} />;
+}
+
+export function FinanceContributionChart({
+  rows,
+  title,
+  formatValue,
+}: {
+  rows: ReadonlyArray<{ date: string; capital: number; value: number | null }>;
+  title: string;
+  formatValue: (value: number) => string;
+}) {
+  const points = useMemo(
+    () => rows.map((row) => ({ ...row, time: Date.parse(`${row.date}T00:00:00Z`) })).sort((a, b) => a.time - b.time),
+    [rows],
+  );
+  const definition = useMemo(
+    () =>
+      defineChart({
+        marks: [
+          areaY(points, { id: 'capital', x: 'time', y1: 0, y2: 'capital', fill: '#64748b', fillOpacity: 0.12 }),
+          differenceY(points, {
+            id: 'value-and-capital',
+            x: 'time',
+            y1: 'capital',
+            y2: 'value',
+            positiveFill: '#059669',
+            negativeFill: '#dc2626',
+            fillOpacity: 0.25,
+            stroke: 'var(--color-primary)',
+            comparisonStroke: '#64748b',
+            comparisonStrokeDasharray: '5 4',
+            points: true,
+          }),
+        ],
+        scales: {
+          x: { scale: scaleLinear, axis: { ticks: { format: (value) => new Date(value).toISOString().slice(0, 10) } } },
+          y: { scale: scaleLinear, nice: true, grid: true, axis: { ticks: { format: formatValue } } },
+        },
+        tooltip: {
+          use: tooltip,
+          format: (point) => {
+            const row = point.datum;
+            if ('date' in row)
+              return `${row.date} · Capital ${formatValue(row.capital)} · Value ${row.value === null ? 'unavailable' : formatValue(row.value)}${row.value === null ? '' : ` · Growth ${formatValue(row.value - row.capital)}`}`;
+            return 'Between recorded observations';
+          },
+        },
+      }),
+    [points, formatValue],
+  );
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground" aria-label="Chart legend">
+        <span>
+          <span aria-hidden="true" className="mr-2 inline-block h-2 w-4 rounded-sm bg-slate-500/30" />
+          Opening value and net contributions
+        </span>
+        <span>
+          <span aria-hidden="true" className="mr-2 inline-block h-2 w-4 rounded-sm bg-emerald-600/40" />
+          Value above capital
+        </span>
+        <span>
+          <span aria-hidden="true" className="mr-2 inline-block h-2 w-4 rounded-sm bg-red-600/40" />
+          Value below capital
+        </span>
+        <span>
+          <span aria-hidden="true" className="mr-2 inline-block h-0.5 w-4 bg-primary align-middle" />
+          Recorded value
+        </span>
+      </div>
+      <Chart definition={definition} height={320} ariaLabel={title} />
+      <p className="text-xs text-muted-foreground">
+        Dots mark available valuation dates. Straight segments join these observations; they do not provide daily
+        prices. Missing valuations break the value line and growth area.
+      </p>
+    </div>
+  );
 }

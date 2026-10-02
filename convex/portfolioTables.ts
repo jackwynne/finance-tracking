@@ -63,7 +63,7 @@ export const portfolioTables = {
     ownerId: v.id('profiles'),
     instrument: v.string(),
     dimension,
-    kind: v.optional(v.union(v.literal('holdings'), v.literal('target'))),
+    kind: v.optional(v.union(v.literal('holdings'), v.literal('target'), v.literal('assumption'))),
     date: v.string(),
     source: v.string(),
     evidence: v.string(),

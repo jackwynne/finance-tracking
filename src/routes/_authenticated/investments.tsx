@@ -73,7 +73,7 @@ function Investments({
   }, [imports, selectedId, onSelectedImportChange]);
 
   async function upload(file: File) {
-    if (!/\.csv$/i.test(file.name)) throw new Error('Choose a Smart or Simplicity CSV investment export.');
+    if (!/\.csv$/i.test(file.name)) throw new Error('Choose a Smart, Simplicity or Hostplus CSV transaction export.');
 
     const url = await generateUrl();
     const response = await fetch(url, {
@@ -96,7 +96,7 @@ function Investments({
       <PageHeading
         eyebrow="Portfolio activity"
         title="Investments"
-        description="Import Smart transaction histories and Simplicity CSV exports. Review and commit each file. Hostplus files and provider holdings need the reviewed Updates workflow."
+        description="Import Smart transaction histories, Simplicity exports and Hostplus transaction CSVs. Review and commit each file. Fund holdings and opening balances use the reviewed Updates workflow."
         action={
           <>
             <input

@@ -304,6 +304,78 @@ function parseFundExport(rows: Array<Array<string>>, fileName: string): ParsedIn
   };
 }
 
+function parseHostplusExport(rows: Array<Array<string>>): ParsedInvestmentImport {
+  const headerIndex = rows.findIndex((row) => row[0]?.trim() === 'Received' && row[1]?.trim() === 'Transaction Type');
+  const headers = rows[headerIndex].map((header) => header.trim());
+  for (const header of ['Transaction ID', 'Total ($)']) {
+    if (!headers.includes(header)) throw new Error(`The Hostplus CSV is missing the "${header}" column.`);
+  }
+  const data = rows
+    .slice(headerIndex + 1)
+    .map((cells, index) => ({ cells, rowNumber: headerIndex + index + 2 }))
+    .filter(({ cells }) => cells.slice(0, 12).some((cell) => cell.trim()));
+  if (!data.length) throw new Error('The Hostplus CSV does not contain any transactions.');
+  const parsedRows = data.map(({ cells, rowNumber }): ParsedInvestmentRow => {
+    const raw = recordFromRow(headers.slice(0, 12), cells);
+    const sourceJson = JSON.stringify({ ...raw, cells });
+    try {
+      const sourceType = raw['Transaction Type'];
+      const transactionType =
+        / contribution$/i.test(sourceType) &&
+        /^\d{2}\/\d{2}\/\d{4} - \d{2}\/\d{2}\/\d{4}$/.test(raw['Payment period'] ?? '')
+          ? 'Employer Contribution'
+          : sourceType;
+      const transactionId = raw['Transaction ID'];
+      if (!transactionType || !transactionId) throw new Error('Transaction type and transaction ID are required.');
+      const dateParts = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(raw.Received);
+      if (!dateParts) throw new Error('Hostplus dates must use DD/MM/YYYY.');
+      const effectiveDate = normalizedDate(`${dateParts[3]}-${dateParts[2]}-${dateParts[1]}`);
+      const amountMinor = toMinorUnits(normalizedDecimal(raw['Total ($)'].replace(/,/g, '')));
+      // Some exports include calculated units and a price in the two unnamed columns after Total ($).
+      const suppliedPrice = cells[12]?.trim();
+      const suppliedUnits = cells[13]?.trim();
+      const units = suppliedUnits ? normalizedDecimal(suppliedUnits) : '0';
+      const unitPrice = suppliedPrice ? normalizedDecimal(suppliedPrice) : undefined;
+      if (unitPrice && unitPrice.startsWith('-')) throw new Error('The unit price must be positive.');
+      if (unitPrice === '0') throw new Error('The unit price must be positive.');
+      if (
+        suppliedUnits &&
+        ((amountMinor < 0n && !units.startsWith('-')) || (amountMinor > 0n && units.startsWith('-')))
+      )
+        throw new Error('The units and cash amount have different signs.');
+      return {
+        rowNumber,
+        status: 'ready',
+        format: 'fundCsv',
+        dedupeKey: sha(
+          ['hostplus', transactionId, normalizeText(sourceType), effectiveDate, amountMinor.toString()].join(':'),
+        ),
+        effectiveDate,
+        transactionType,
+        description: suppliedUnits ? sourceType : `${sourceType} · Units not supplied`,
+        units,
+        unitPrice,
+        amountMinor,
+        currency: 'AUD',
+        sourceJson,
+      };
+    } catch (error) {
+      return { ...invalidRow(rowNumber, 'fundCsv', sourceJson, error), currency: 'AUD' };
+    }
+  });
+  return {
+    rows: parsedRows,
+    summary: {
+      format: 'fundCsv',
+      detectedAccountName: 'Hostplus',
+      provider: 'Hostplus',
+      currency: 'AUD',
+      sourceKeyHash: sha('hostplus:unidentified-member'),
+      ...summaryDates(parsedRows),
+    },
+  };
+}
+
 export function parseInvestmentCsv(text: string, fileName: string): ParsedInvestmentImport {
   const rows = parseCsv(text);
   if (rows.some((row) => row[0]?.trim() === 'CSN/HRN' && row[1]?.trim() === 'Security Code'))
@@ -314,7 +386,9 @@ export function parseInvestmentCsv(text: string, fileName: string): ParsedInvest
     )
   )
     return parseFundExport(rows, fileName);
-  throw new Error('This CSV does not match either supported investment export format.');
+  if (rows.some((row) => row[0]?.trim() === 'Received' && row[1]?.trim() === 'Transaction Type'))
+    return parseHostplusExport(rows);
+  throw new Error('This CSV does not match a supported Smart, Simplicity or Hostplus transaction export.');
 }
 
 export const parse = internalAction({

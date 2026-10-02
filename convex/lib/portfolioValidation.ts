@@ -50,6 +50,14 @@ export function validateAllocation(value: Infer<typeof allocation>) {
       throw new ConvexError('Stock allocations must contain positive issuer weights.');
   }
   const total = value.weights.reduce((sum, row) => sum + decimal(row.weight), 0n);
+  if (
+    value.kind === 'assumption' &&
+    (value.dimension !== 'country' ||
+      value.complete ||
+      total !== SCALE ||
+      value.weights.some((row) => decimal(row.weight) < 0n))
+  )
+    throw new ConvexError('Country assumptions must be partial, nonnegative and sum to exactly 1.');
   if (value.kind === 'target' && value.complete)
     throw new ConvexError('Target allocations cannot count as resolved actual exposure.');
   if (value.complete && total !== SCALE)

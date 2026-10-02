@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from 'convex/react';
-import type { FunctionArgs } from 'convex/server';
+import type { FunctionArgs, FunctionReturnType } from 'convex/server';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -15,6 +15,7 @@ import { PageHeading, showError } from './finance-ui';
 import { PortfolioForms } from './portfolio-forms';
 import { PortfolioHistory } from './portfolio-history';
 import { stringField, boolField, weightsField, optionalStringField } from './portfolio-input';
+import { PortfolioPerformance } from './portfolio-performance';
 import { StockExposure } from './stock-exposure';
 
 const positionExample = JSON.stringify(
@@ -61,13 +62,27 @@ export function PortfolioExposure() {
   const [retirementScope, setRetirementScope] =
     useState<NonNullable<FunctionArgs<typeof api.portfolio.getExposure>['retirement']>>('all');
   const [selectedPositions, setSelectedPositions] = useState<Array<string> | null>(null);
-  const summary = useQuery(api.portfolio.getExposure, {
+  const [includeAssumptions, setIncludeAssumptions] = useState(true);
+  const options = useQuery(api.portfolio.getExposure, { asOf, currency, includeAssumptions });
+  const [filterOpen, setFilterOpen] = useState(false);
+  const latestSummary = useQuery(api.portfolio.getExposure, {
     asOf,
     currency,
     assetScope,
+    includeAssumptions,
     retirement: retirementScope,
     positionIds: selectedPositions ?? undefined,
   });
+  const [previousResult, setPreviousResult] = useState<
+    { summary: FunctionReturnType<typeof api.portfolio.getExposure>; currency: string } | undefined
+  >();
+  useEffect(() => {
+    if (latestSummary) setPreviousResult({ summary: latestSummary, currency });
+  }, [latestSummary, currency]);
+  const summary = latestSummary ?? previousResult?.summary;
+  const displayCurrency = latestSummary ? currency : (previousResult?.currency ?? currency);
+  const updating = latestSummary === undefined;
+  const filterOptions = options?.filterOptions ?? summary?.filterOptions ?? [];
   const proposePurchase = useMutation(api.portfolio.proposePurchase);
   const resolvePurchase = useMutation(api.portfolio.resolvePurchase);
   const [purchasePosition, setPurchasePosition] = useState('');
@@ -76,7 +91,7 @@ export function PortfolioExposure() {
   const saveAllocation = useMutation(api.portfolio.saveAllocation);
   const savePrice = useMutation(api.portfolio.savePrice);
   const [draft, setDraft] = useState(positionExample);
-  const [allocationKind, setAllocationKind] = useState<'holdings' | 'target'>('holdings');
+  const [allocationKind, setAllocationKind] = useState<'holdings' | 'target' | 'assumption'>('holdings');
   const [kind, setKind] = useState('position');
   const [busy, setBusy] = useState(false);
   async function save() {
@@ -205,42 +220,62 @@ export function PortfolioExposure() {
             <option value="accessible">Outside retirement</option>
           </select>
         </label>
-        {summary && (
-          <details className="min-w-52 py-1">
-            <summary className="cursor-pointer">
-              {selectedPositions === null ? 'All funds and accounts' : `${selectedPositions.length} holdings selected`}
-            </summary>
-            <div className="mt-3 space-y-2">
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" onClick={() => setSelectedPositions(null)}>
-                  Select all
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setSelectedPositions([])}>
-                  Clear selection
-                </Button>
-              </div>
-              {summary.filterOptions.map((position) => (
-                <label key={position.id} className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedPositions === null || selectedPositions.includes(position.id)}
-                    onChange={(event) => {
-                      const current = selectedPositions ?? summary.filterOptions.map((entry) => entry.id);
-                      setSelectedPositions(
-                        event.target.checked ? [...current, position.id] : current.filter((id) => id !== position.id),
-                      );
-                    }}
-                  />
-                  {position.name}
-                </label>
-              ))}
-              <p className="max-w-xs text-xs text-muted-foreground">
-                Select funds or accounts to compare their exposure. The asset and retirement filters still apply.
-              </p>
+        <label className="flex max-w-xs items-start gap-2 py-1">
+          <input
+            type="checkbox"
+            checked={includeAssumptions}
+            onChange={(event) => setIncludeAssumptions(event.target.checked)}
+          />
+          <span>
+            Use fund country assumptions
+            <span className="mt-1 block text-xs text-muted-foreground">
+              Fill undisclosed country exposure using recorded assumptions. Actual disclosures remain separate.
+            </span>
+          </span>
+        </label>
+        <details
+          className="min-w-52 py-1"
+          open={filterOpen}
+          onToggle={(event) => setFilterOpen(event.currentTarget.open)}
+        >
+          <summary className="cursor-pointer">
+            {selectedPositions === null ? 'All funds and accounts' : `${selectedPositions.length} holdings selected`}
+          </summary>
+          <div className="mt-3 space-y-2">
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => setSelectedPositions(null)}>
+                Select all
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setSelectedPositions([])}>
+                Clear selection
+              </Button>
             </div>
-          </details>
-        )}
+            {filterOptions.map((position) => (
+              <label key={position.id} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={selectedPositions === null || selectedPositions.includes(position.id)}
+                  onChange={(event) => {
+                    const current = selectedPositions ?? filterOptions.map((entry) => entry.id);
+                    setSelectedPositions(
+                      event.target.checked ? [...current, position.id] : current.filter((id) => id !== position.id),
+                    );
+                  }}
+                />
+                {position.name}
+              </label>
+            ))}
+            <p className="max-w-xs text-xs text-muted-foreground">
+              Select funds or accounts to compare their exposure. The asset and retirement filters still apply.
+            </p>
+          </div>
+        </details>
       </div>
+      {updating && (
+        <p role="status" className="mb-4 text-sm text-muted-foreground">
+          Updating exposure. Previously loaded results remain visible until the selected scope is ready.
+        </p>
+      )}
       {summary && (
         <>
           {summary.potentialDuplicateAccounts > 0 && (
@@ -274,25 +309,25 @@ export function PortfolioExposure() {
               <Card key={label}>
                 <CardHeader>
                   <CardDescription>{label}</CardDescription>
-                  <CardTitle>{display(value, currency)}</CardTitle>
+                  <CardTitle>{display(value, displayCurrency)}</CardTitle>
                 </CardHeader>
               </Card>
             ))}
           </div>
           {(assetScope !== 'all' || retirementScope !== 'all' || selectedPositions !== null) && (
             <p className="mb-4 text-sm text-muted-foreground">
-              Whole recorded portfolio net wealth is {display(summary.portfolioNet, currency)}. The cards and exposure
-              percentages below use only the selected holdings.
+              Whole recorded portfolio net wealth is {display(summary.portfolioNet, displayCurrency)}. The cards and
+              exposure percentages below use only the selected holdings.
             </p>
           )}
           <div className="mb-6 flex flex-wrap gap-x-8 gap-y-3 border-y py-4 text-sm">
             <div>
               <span className="text-muted-foreground">Outside retirement</span>
-              <p className="font-medium tabular-nums">{display(summary.accessibleValue, currency)}</p>
+              <p className="font-medium tabular-nums">{display(summary.accessibleValue, displayCurrency)}</p>
             </div>
             <div>
               <span className="text-muted-foreground">Retirement savings</span>
-              <p className="font-medium tabular-nums">{display(summary.retirementValue, currency)}</p>
+              <p className="font-medium tabular-nums">{display(summary.retirementValue, displayCurrency)}</p>
             </div>
             <p className="max-w-xl text-xs text-muted-foreground">
               Retirement balances are part of gross assets and may have withdrawal restrictions. Outside retirement
@@ -302,16 +337,22 @@ export function PortfolioExposure() {
           </div>
           {assetScope === 'equities' && (
             <p className="mb-5 rounded border p-3 text-sm">
-              Disclosed equity value is {display(summary.equitySummary.value, currency)}.{' '}
-              {display(summary.equitySummary.unknownValue, currency)} has unresolved asset class coverage. Country and
-              stock charts show the selected holdings' gross exposure, including any non-equity assets within those
-              funds. Separate country and asset class disclosures do not establish an equity-only country breakdown.
+              Disclosed equity value is {display(summary.equitySummary.value, displayCurrency)}.{' '}
+              {display(summary.equitySummary.unknownValue, displayCurrency)} has unresolved asset class coverage.
+              Country and stock charts show the selected holdings' gross exposure, including any non-equity assets
+              within those funds. Separate country and asset class disclosures do not establish an equity-only country
+              breakdown.
             </p>
           )}
-          <StockExposure exposure={summary} currency={currency} />
-          <ExposureBreakdown exposure={summary} currency={currency} onSelectFunds={setSelectedPositions} />
+          <StockExposure exposure={summary} currency={displayCurrency} />
+          <ExposureBreakdown exposure={summary} currency={displayCurrency} onSelectFunds={setSelectedPositions} />
           <div className="my-6">
             <PortfolioHistory asOf={asOf} />
+            <p className="mt-5 mb-3 text-xs text-muted-foreground">
+              Account history and contribution comparisons below use their own account selection, independently of
+              exposure filters.
+            </p>
+            <PortfolioPerformance asOf={asOf} currency={currency} />
           </div>
           <Card className="my-6">
             <CardHeader>
@@ -348,7 +389,7 @@ export function PortfolioExposure() {
                           </div>
                         </td>
                         <td>{display(row.nativeValue, row.currency)}</td>
-                        <td>{display(row.value, currency)}</td>
+                        <td>{display(row.value, displayCurrency)}</td>
                         <td>
                           <div>Valuation {row.date || 'missing'}</div>
                           {row.holdingsDate && (
@@ -495,13 +536,23 @@ export function PortfolioExposure() {
                 Disclosure basis{' '}
                 <select
                   value={allocationKind}
-                  onChange={(e) => setAllocationKind(e.target.value === 'target' ? 'target' : 'holdings')}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === 'holdings' || value === 'target' || value === 'assumption') setAllocationKind(value);
+                  }}
                   className="ml-2 rounded border p-2"
                 >
                   <option value="holdings">Observed holdings</option>
+                  <option value="assumption">Country assumption for undisclosed exposure</option>
                   <option value="target">Target allocation, excluded from actual exposure</option>
                 </select>
               </label>
+            )}
+            {kind === 'allocation' && allocationKind === 'assumption' && (
+              <p className="text-xs text-muted-foreground">
+                Use dimension country and complete false. Assumption weights apply only to the positive undisclosed
+                remainder of the holding.
+              </p>
             )}
             {kind === 'purchase' && (
               <select

@@ -154,6 +154,7 @@ export const getExposure = query({
     asOf: v.string(),
     currency: v.union(v.literal('NZD'), v.literal('AUD')),
     positionIds: v.optional(v.array(v.string())),
+    includeAssumptions: v.optional(v.boolean()),
     assetScope: v.optional(v.union(v.literal('all'), v.literal('investments'), v.literal('equities'))),
     retirement: v.optional(v.union(v.literal('all'), v.literal('retirement'), v.literal('accessible'))),
   },
@@ -382,6 +383,30 @@ export const getExposure = query({
     }
     const breakdowns = ['country', 'industry', 'assetClass'].map((kind) => {
       let covered = 0n;
+      let reportedValue = 0n;
+      let unmappedValue = 0n;
+      let assumedValue = 0n;
+      let remainingUnmappedValue = 0n;
+      const sources: Array<{
+        positionId: string;
+        name: string;
+        instrument: string;
+        value: string;
+        allocationDate: string | null;
+        source: string | null;
+        evidence: string | null;
+        status: 'missing' | 'partial' | 'complete';
+        reportedWeight: string;
+        reportedValue: string;
+        unmappedValue: string;
+        assumedValue: string;
+        remainingUnmappedValue: string;
+        assumptionSource: string | null;
+        assumptionDate: string | null;
+        assumptionEvidence: string | null;
+        hasSignedOffsets: boolean;
+        grossExposure: boolean;
+      }> = [];
       const buckets = new Map<string, bigint>();
       const contributions = new Map<
         string,
@@ -394,6 +419,7 @@ export const getExposure = query({
           allocationDate: string;
           source: string;
           evidence: string;
+          basis: 'disclosed' | 'assumed';
         }>
       >();
       for (const row of rows) {
@@ -402,7 +428,11 @@ export const getExposure = query({
         const allocation = allocations
           .filter(
             (a) =>
-              a.instrument === row.instrument && a.dimension === kind && a.date <= args.asOf && a.kind !== 'target',
+              a.instrument === row.instrument &&
+              a.dimension === kind &&
+              a.date <= args.asOf &&
+              a.kind !== 'target' &&
+              a.kind !== 'assumption',
           )
           .sort((a, b) => b.date.localeCompare(a.date) || b._creationTime - a._creationTime)
           .at(0);
@@ -413,9 +443,13 @@ export const getExposure = query({
             : row.country && kind === 'country'
               ? [{ label: row.country, weight: '1' }]
               : []);
-        if (allocation?.complete || (weights.length > 0 && !allocation)) covered += value;
+        const complete = allocation?.complete || (weights.length > 0 && !allocation);
+        if (complete) covered += value;
+        let attributedValue = 0n;
+        const reportedWeight = weights.reduce((sum, weight) => sum + decimal(weight.weight), 0n);
         for (const weight of weights) {
           const attributed = multiply(value, decimal(weight.weight));
+          attributedValue += attributed;
           buckets.set(weight.label, (buckets.get(weight.label) ?? 0n) + attributed);
           const items = contributions.get(weight.label) ?? [];
           items.push({
@@ -427,12 +461,84 @@ export const getExposure = query({
             allocationDate: allocation?.date ?? row.date,
             source: allocation?.source ?? row.source,
             evidence: allocation?.evidence ?? 'Dated account balance',
+            basis: 'disclosed',
           });
           contributions.set(weight.label, items);
         }
+        const gap = value > attributedValue ? value - attributedValue : 0n;
+        const assumption =
+          kind === 'country'
+            ? allocations
+                .filter(
+                  (a) =>
+                    a.instrument === row.instrument &&
+                    a.dimension === 'country' &&
+                    a.kind === 'assumption' &&
+                    a.date <= args.asOf,
+                )
+                .sort((a, b) => b.date.localeCompare(a.date) || b._creationTime - a._creationTime)
+                .at(0)
+            : undefined;
+        let assumed = 0n;
+        if (args.includeAssumptions !== false && assumption && gap > 0n) {
+          for (const weight of assumption.weights) {
+            const amount = multiply(gap, decimal(weight.weight));
+            assumed += amount;
+            buckets.set(weight.label, (buckets.get(weight.label) ?? 0n) + amount);
+            const items = contributions.get(weight.label) ?? [];
+            items.push({
+              positionId: row.id,
+              name: row.name,
+              instrument: row.instrument,
+              value: decimalText(amount),
+              weight: value > 0n ? decimalText((amount * SCALE) / value) : '0',
+              allocationDate: assumption.date,
+              source: assumption.source,
+              evidence: assumption.evidence,
+              basis: 'assumed',
+            });
+            contributions.set(weight.label, items);
+          }
+        }
+        const remaining = gap > assumed ? gap - assumed : 0n;
+        assumedValue += assumed;
+        remainingUnmappedValue += remaining;
+        reportedValue += attributedValue;
+        unmappedValue += gap;
+        sources.push({
+          positionId: row.id,
+          name: row.name,
+          instrument: row.instrument,
+          value: decimalText(value),
+          allocationDate: allocation?.date ?? (weights.length > 0 ? row.date : null),
+          source: allocation?.source ?? (weights.length > 0 ? row.source : null),
+          evidence: allocation?.evidence ?? (weights.length > 0 ? 'Dated account balance' : null),
+          status: complete ? 'complete' : allocation ? 'partial' : 'missing',
+          reportedWeight: decimalText(reportedWeight),
+          reportedValue: decimalText(attributedValue),
+          unmappedValue: decimalText(gap),
+          assumedValue: decimalText(assumed),
+          remainingUnmappedValue: decimalText(remaining),
+          assumptionSource: assumption?.source ?? null,
+          assumptionDate: assumption?.date ?? null,
+          assumptionEvidence: assumption?.evidence ?? null,
+          hasSignedOffsets: weights.some((weight) => decimal(weight.weight) < 0n),
+          grossExposure:
+            reportedWeight > SCALE ||
+            weights
+              .filter((weight) => decimal(weight.weight) > 0n)
+              .reduce((sum, weight) => sum + decimal(weight.weight), 0n) > SCALE,
+        });
       }
       return {
         dimension: kind,
+        sources,
+        reportedValue: decimalText(reportedValue),
+        unmappedValue: decimalText(unmappedValue),
+        assumedValue: decimalText(assumedValue),
+        attributedValue: decimalText(reportedValue + assumedValue),
+        remainingUnmappedValue: decimalText(remainingUnmappedValue),
+        reportedPercent: gross > 0n ? decimalText((reportedValue * 100n * SCALE) / gross) : '0',
         covered: decimalText(covered),
         unresolved: decimalText(gross - covered),
         coveredPercent: gross > 0n ? decimalText((covered * 100n * SCALE) / gross) : '0',

@@ -6,7 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 
 import type { api } from '../../../convex/_generated/api';
 import { decimal, decimalText, SCALE } from '../../../convex/lib/portfolioMath';
-import { exposureMoney, exposurePercent, rankedExposure } from './exposure-format';
+import { exposureMoney, exposurePercent, rankedExposure, attributedExposurePercent } from './exposure-format';
+import { ExposureSourceTable } from './exposure-source-table';
 import { FinanceBarChart } from './finance-charts';
 
 type Exposure = FunctionReturnType<typeof api.portfolio.getExposure>;
@@ -22,9 +23,17 @@ export function ExposureBreakdown({
   onSelectFunds: (positionIds: Array<string>) => void;
 }) {
   const [dimension, setDimension] = useState<Dimension>('country');
+  const [percentBasis, setPercentBasis] = useState<'assets' | 'disclosed'>('assets');
   const [view, setView] = useState<'bars' | 'table'>('bars');
   const group = exposure.breakdowns.find((entry) => entry.dimension === dimension);
   const ranked = group ? rankedExposure(group.allocations) : [];
+  function percentLabel(row: NonNullable<typeof group>['allocations'][number]) {
+    if (percentBasis === 'assets') return `${exposurePercent(row.percent)} of selected gross assets`;
+    const percent = attributedExposurePercent(row.value, ranked);
+    return percent === null
+      ? 'Disclosed share unavailable'
+      : `${exposurePercent(percent)} of attributed ${dimension === 'assetClass' ? 'asset class' : dimension} exposure`;
+  }
   function allocations(rows: NonNullable<typeof group>['allocations']) {
     return rows.map((row) => (
       <details key={row.label} className="border-b py-3 last:border-b-0">
@@ -37,14 +46,14 @@ export function ExposureBreakdown({
           </div>
           <div className="shrink-0 text-right tabular-nums">
             <p>{exposureMoney(row.value, currency)}</p>
-            <p className="text-xs text-muted-foreground">{exposurePercent(row.percent)} of selected gross assets</p>
+            <p className="text-xs text-muted-foreground">{percentLabel(row)}</p>
           </div>
         </summary>
         <div className="mt-3 space-y-3 rounded bg-muted/40 p-3">
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onSelectFunds(row.contributions.map((item) => item.positionId))}
+            onClick={() => onSelectFunds(Array.from(new Set(row.contributions.map((item) => item.positionId))))}
           >
             Filter to these holdings
           </Button>
@@ -52,17 +61,22 @@ export function ExposureBreakdown({
             This selects the contributing holdings across the page. Their other exposures remain included.
           </p>
           {row.contributions.map((contribution) => (
-            <div key={contribution.positionId} className="text-sm">
+            <div key={`${contribution.positionId}:${contribution.basis}`} className="text-sm">
               <div className="flex flex-wrap justify-between gap-2">
-                <span>{contribution.name}</span>
+                <span>
+                  {contribution.name}
+                  {contribution.basis === 'assumed' && (
+                    <span className="ml-2 text-xs text-amber-700">Assumed country</span>
+                  )}
+                </span>
                 <span className="tabular-nums">{exposureMoney(contribution.value, currency)}</span>
               </div>
               <p className="text-xs text-muted-foreground">
                 {decimal(row.value) > 0n
                   ? `${exposurePercent(decimalText((decimal(contribution.value) * 100n * SCALE) / decimal(row.value)))} of this ${dimension === 'assetClass' ? 'asset class' : dimension} exposure. `
                   : 'Net exposure is zero or negative; no share percentage. '}
-                {exposurePercent(String(Number(contribution.weight) * 100))} of this holding. Disclosure{' '}
-                {contribution.allocationDate}.
+                {exposurePercent(String(Number(contribution.weight) * 100))} of this holding.{' '}
+                {contribution.basis === 'assumed' ? 'Assumption' : 'Disclosure'} {contribution.allocationDate}.
               </p>
               <details className="mt-1 text-xs text-muted-foreground">
                 <summary className="cursor-pointer">View source</summary>
@@ -115,6 +129,18 @@ export function ExposureBreakdown({
             </Button>
           ))}
         </div>
+        <label className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+          Percentage basis
+          <select
+            aria-label="Percentage basis"
+            className="rounded border p-2"
+            value={percentBasis}
+            onChange={(event) => setPercentBasis(event.target.value === 'disclosed' ? 'disclosed' : 'assets')}
+          >
+            <option value="assets">Selected assets</option>
+            <option value="disclosed">Attributed exposure</option>
+          </select>
+        </label>
       </CardHeader>
       {group && (
         <CardContent>
@@ -123,13 +149,24 @@ export function ExposureBreakdown({
             {dimension === 'assetClass' ? 'asset class' : dimension} coverage.{' '}
             {exposureMoney(group.unresolved, currency)} has partial or missing coverage.
           </p>
+          <p className="mb-3 text-xs text-muted-foreground">
+            {percentBasis === 'disclosed'
+              ? 'Percentages divide by the sum of attributed amounts, including enabled assumptions. Remaining unknown exposure is excluded. This is not an equity-only country estimate.'
+              : 'Percentages divide by all selected gross assets, including fund cash and other assets. Partial disclosures leave some of that value unattributed.'}
+          </p>
+          {decimal(group.assumedValue) > 0n && (
+            <p className="mb-3 text-xs text-amber-700">
+              {exposureMoney(group.assumedValue, currency)} of this breakdown uses fund country assumptions. The
+              verified coverage above is unchanged.
+            </p>
+          )}
           {view === 'bars' && (
             <FinanceBarChart
               title={`${dimension === 'assetClass' ? 'Asset class' : dimension} exposure`}
               rows={ranked.slice(0, 8).map((row) => ({
                 label: row.label,
                 value: Number(row.value),
-                detail: `${exposurePercent(row.percent)} of selected gross assets`,
+                detail: percentLabel(row),
               }))}
               formatValue={(value) => exposureMoney(String(value), currency)}
             />
@@ -145,6 +182,7 @@ export function ExposureBreakdown({
             Known allocations include partial disclosures and signed offsets. Each breakdown describes the same assets;
             country and industry totals cannot be combined.
           </p>
+          <ExposureSourceTable group={group} currency={currency} />
         </CardContent>
       )}
     </Card>

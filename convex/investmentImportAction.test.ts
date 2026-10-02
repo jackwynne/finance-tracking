@@ -81,3 +81,70 @@ test.skipIf(!existsSync(realRegistryExport) || !existsSync(realFundExport))(
     expect(fund.rows.filter((row) => row.status === 'invalid')).toHaveLength(0);
   },
 );
+
+const hostplusExport = `Received,Transaction Type,Transaction ID,Payment period,Direct Investment,Employer,Insurance Credit,Member,Rollover,Salary Sacrifice,Spouse,Total ($),,,,01/08/2025,1.3368
+17/09/2026,Example Employer Contribution,123,01/09/2026 - 30/09/2026,0,100,0,0,0,0,0,100,1.5,66.666666667,,04/08/2025,1.3439
+28/08/2026,Death insurance premium,456,NA,0,-3,0,0,0,0,0,-3,1.5,-2,,05/08/2025,1.3501
+28/08/2026,TPD insurance premium,456,NA,0,-6,0,0,0,0,0,-6,1.5,-4,,06/08/2025,1.3572
+,,,,,,,,,,,,,,,07/08/2025,1.3573
+`;
+
+test('parses Hostplus signed cash and units without importing the appended price history', () => {
+  const parsed = parseInvestmentCsv(hostplusExport, 'hostplus.csv');
+  expect(parsed.summary).toMatchObject({
+    provider: 'Hostplus',
+    currency: 'AUD',
+    dateFrom: '2026-08-28',
+    dateTo: '2026-09-17',
+  });
+  expect(parsed.rows).toHaveLength(3);
+  expect(parsed.rows[0]).toMatchObject({
+    transactionType: 'Employer Contribution',
+    description: 'Example Employer Contribution',
+    amountMinor: 10000n,
+    units: '66.666666667',
+    unitPrice: '1.5',
+    currency: 'AUD',
+  });
+  expect(parsed.rows[1]).toMatchObject({ amountMinor: -300n, units: '-2' });
+  expect(parsed.rows[2].dedupeKey).not.toBe(parsed.rows[1].dedupeKey);
+  expect(JSON.parse(parsed.rows[0].sourceJson)).toHaveProperty('Transaction ID', '123');
+  expect(parseInvestmentCsv(hostplusExport, 'renamed.csv').rows.map((row) => row.dedupeKey)).toEqual(
+    parsed.rows.map((row) => row.dedupeKey),
+  );
+});
+
+test('retains cash-only Hostplus activity without inventing units or prices', () => {
+  const parsed = parseInvestmentCsv(
+    'Received,Transaction Type,Transaction ID,Total ($)\n17/08/2026,Personal contribution,789,10\n',
+    'hostplus.csv',
+  );
+  expect(parsed.rows[0]).toMatchObject({
+    amountMinor: 1000n,
+    units: '0',
+    description: 'Personal contribution · Units not supplied',
+  });
+  expect(parsed.rows[0].unitPrice).toBeUndefined();
+});
+
+const suppliedHostplusPath = process.env.KORU_HOSTPLUS_CSV;
+test.skipIf(!suppliedHostplusPath)('parses a supplied Hostplus export without invalid transactions', () => {
+  if (!suppliedHostplusPath) throw new Error('Set KORU_HOSTPLUS_CSV to the export path.');
+  const parsed = parseInvestmentCsv(readFileSync(suppliedHostplusPath, 'utf8'), 'hostplus.csv');
+  expect(parsed.rows.length).toBeGreaterThan(0);
+  expect(parsed.rows.filter((row) => row.status === 'invalid')).toHaveLength(0);
+  expect(parsed.rows.every((row) => row.currency === 'AUD')).toBe(true);
+});
+
+test('marks Hostplus dates and inconsistent unit signs invalid without losing source currency', () => {
+  const invalid = hostplusExport
+    .replace('28/08/2026,Death insurance', '31/02/2026,Death insurance')
+    .replace('-6,1.5,-4', '-6,1.5,4');
+  const parsed = parseInvestmentCsv(invalid, 'hostplus.csv');
+  expect(parsed.rows.slice(1).map((row) => [row.status, row.currency])).toEqual([
+    ['invalid', 'AUD'],
+    ['invalid', 'AUD'],
+  ]);
+  expect(parsed.rows[1].error).toContain('not a valid date');
+  expect(parsed.rows[2].error).toContain('different signs');
+});

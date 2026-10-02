@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { exposureMoney, exposurePercent, rankedExposure } from './exposure-format';
+import { exposureMoney, exposurePercent, rankedExposure, attributedExposurePercent } from './exposure-format';
 
 describe('exposure display precision', () => {
   it('rounds decimal money at the cent boundary without converting large asset values to floating point', () => {
@@ -30,4 +30,11 @@ it('ranks a large late-inserted allocation before minor countries without mutati
   ).toEqual(['United States', 'New Zealand']);
   expect(source[0]?.label).toBe('Minor 0');
   expect(rankedExposure(source).at(-1)?.label).toBe('Hedge offset');
+});
+
+it('uses only known signed disclosed exposure in the requested percentage basis', () => {
+  expect(Number(attributedExposurePercent('253748', [{ value: '253748' }, { value: '32000' }]))).toBeCloseTo(88.801, 2);
+  expect(attributedExposurePercent('100', [{ value: '120' }, { value: '-20' }])).toBe('100');
+  expect(attributedExposurePercent('1', [{ value: '0' }])).toBeNull();
+  expect(attributedExposurePercent('1', [{ value: '-10' }])).toBeNull();
 });

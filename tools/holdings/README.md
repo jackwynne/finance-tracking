@@ -38,3 +38,19 @@ An identical security identifier groups the same security across providers. US I
 Vanguard US ticker records identify iShares securities where the exact ticker has a unique CUSIP; ambiguous ticker mappings fail. Issuer aliases include a corporate-action pair for ExxonMobil. The [NYSE notice filed with the SEC](https://www.sec.gov/Archives/edgar/data/34088/000087666126000593/ruleprovisionnotice.htm) explicitly links old CUSIP `30231G102` to new `30233Q108` after the July 2026 redomiciliation.
 
 The tests verify actual cross-provider identifier pairs, share-class grouping before truncation, exact decimal wrapper weights, exclusion of cash and ETFs, and omission of unpublished weights. The map is intentionally incomplete. New issuer aliases need source evidence and a pair regression check.
+
+## Historical unit prices
+
+`historical_prices.py` downloads exact dated Smart ETF NTA prices from the public NZX announcement API used by the exchange website. The default history starts in 2018; UST begins in 2024, its published inception year. Original announcement JSON is cached locally. The output includes daily observations and a smaller monthly set using the last actual published observation per month, including the latest incomplete month. It does not interpolate dates or convert NAV/NTA into exchange closing prices.
+
+```sh
+python3 tools/holdings/historical_prices.py \
+  --output-dir /path/to/public-price-downloads \
+  --start-year 2018 --end-year 2026 \
+  --simplicity-csv /path/to/simplicity-high-growth-prices.csv \
+  --hostplus-csv /path/to/hostplus-daily-unit-prices.csv
+```
+
+Repeated `--hostplus-csv` arguments combine overlapping exports, rejecting conflicting prices. Simplicity is NZD; Hostplus is AUD. The script never converts currencies. Every Smart price retains its announcement link. Conflicting same-date title prices are omitted and recorded in `*-excluded-conflicts-*.json` for review, rather than selecting an arbitrary value.
+
+Historical prices establish valuation observations, not the money contributed. A transaction export containing only units cannot establish actual purchase cash or cost basis. The monthly output is data for review, and is not an update proposal or an instruction to apply all prices to production.
