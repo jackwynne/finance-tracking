@@ -44,5 +44,8 @@ The [decision trail](decisions.tsv) records choices and evidence. Key local comm
 - `2833d2f`: statement account identity.
 - `41056eb`: fund-switch reconciliation.
 - `ccc0618`: screens and in-app setup guide.
+- `230db24`: personal plugin, server setup instructions and decision trail.
+
+Independent GPT-6 Astra review confirmed the resolved blockers and the trail's distinctions. Attention remains on live ANZ/ChatGPT acceptance, existing duplicate account identities, dated holdings evidence, and installing the personal plugin. The browser lifecycle was a no-change proposal; financial-change correctness was verified with isolated tests. Public FX rates were updated and one undone verification job remains. Delivery is local.
 
 Public fund-download automation, recursive company overlap, performance reporting and a developer CLI remain optional later work. The complete specification is [the improvement plan](../improvement-plan.html). No remote push has been requested.
