@@ -85,3 +85,37 @@ test('rollback drains more than 25 sources and preserves a shared investment tra
     vi.useRealTimers();
   }
 });
+
+test('imports a former fund separately and deduplicates repeated imports without changing the active fund', async () => {
+  vi.useFakeTimers();
+  try {
+    const t = convexTest(schema, modules);
+    const owner = t.withIdentity({ tokenIdentifier: 'test|funds', subject: 'funds', issuer: 'test' });
+    await owner.mutation(api.profiles.ensureCurrent, {});
+    const [header, row] = fundExport.trimEnd().split('\n');
+    const growthExport = `${header},InstrumentCode,FundName\n${row},simplicity:growth,Simplicity Growth KiwiSaver\n`;
+    const upload = async (contents: string) => {
+      const storageId = await owner.run((ctx) => ctx.storage.store(new Blob([contents])));
+      const importId = await owner.mutation(api.investmentImports.create, { storageId, fileName: 'fund.csv' });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+      const preview = await owner.query(api.investmentImports.preview, { importId });
+      await owner.mutation(api.investmentImports.commit, { importId });
+      await t.finishAllScheduledFunctions(() => vi.runAllTimers());
+      return preview;
+    };
+    const active = await upload(fundExport);
+    const growth = await upload(growthExport);
+    expect(growth.importJob.accountId).not.toBe(active.importJob.accountId);
+    expect(growth.importJob).toMatchObject({ readyRows: 1, duplicateRows: 0 });
+    const repeated = await upload(growthExport);
+    expect(repeated.importJob).toMatchObject({ readyRows: 0, duplicateRows: 1 });
+    const transactions = await owner.query(api.investmentImports.listTransactions, {});
+    expect(transactions).toHaveLength(2);
+    expect(transactions.find((r) => r.accountId === active.importJob.accountId)?.instrumentCode).toBeUndefined();
+    expect(transactions.find((r) => r.accountId === growth.importJob.accountId)?.instrumentCode).toBe(
+      'simplicity:growth',
+    );
+  } finally {
+    vi.useRealTimers();
+  }
+});

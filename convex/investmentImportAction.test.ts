@@ -148,3 +148,44 @@ test('marks Hostplus dates and inconsistent unit signs invalid without losing so
   expect(parsed.rows[1].error).toContain('not a valid date');
   expect(parsed.rows[2].error).toContain('different signs');
 });
+
+function identifiedFundExport(instrument: string, name = 'Simplicity Growth KiwiSaver') {
+  const [header, ...rows] = fundExport.trimEnd().split('\n');
+  return [`${header},InstrumentCode,FundName`, ...rows.map((row) => `${row},${instrument},${name}`)].join('\n');
+}
+
+test('keeps explicit fund identities separate from the legacy fund and other funds for the same member', () => {
+  const legacy = parseInvestmentCsv(fundExport, 'legacy.csv');
+  const growth = parseInvestmentCsv(identifiedFundExport('simplicity:growth'), 'growth.csv');
+  const high = parseInvestmentCsv(identifiedFundExport('simplicity:high-growth'), 'high.csv');
+  expect(new Set([legacy, growth, high].map((p) => p.summary.sourceKeyHash)).size).toBe(3);
+  expect(growth.summary.detectedAccountName).toBe('Simplicity Growth KiwiSaver •••• 3144');
+  expect(growth.rows.every((row) => row.instrumentCode === 'simplicity:growth' && row.status === 'ready')).toBe(true);
+  expect(JSON.parse(growth.rows[0].sourceJson)).toHaveProperty('Amount', '504.14');
+  const renamed = parseInvestmentCsv(identifiedFundExport('simplicity:growth', 'Growth fund renamed'), 'renamed.csv');
+  expect(renamed.rows.map((row) => row.dedupeKey)).toEqual(growth.rows.map((row) => row.dedupeKey));
+  expect(renamed.summary.sourceKeyHash).toBe(growth.summary.sourceKeyHash);
+});
+
+test('rejects incomplete or mixed fund identities before staging transactions', () => {
+  expect(() => parseInvestmentCsv(identifiedFundExport('', 'Growth'), 'bad.csv')).toThrow('require both');
+  const mixed = identifiedFundExport('simplicity:growth').replace(/simplicity:growth(?=,)/, 'simplicity:high-growth');
+  expect(() => parseInvestmentCsv(mixed, 'bad.csv')).toThrow('Import each fund separately');
+});
+
+const suppliedSimplicityPath = process.env.KORU_SIMPLICITY_CSV;
+test.skipIf(!suppliedSimplicityPath)(
+  'reconciles a supplied closed fund export to zero units and complete history',
+  async () => {
+    if (!suppliedSimplicityPath) throw new Error('Set KORU_SIMPLICITY_CSV to the prepared export path.');
+    const { contributionHistory } = await import('./lib/portfolioPerformanceMath');
+    const parsed = parseInvestmentCsv(readFileSync(suppliedSimplicityPath, 'utf8'), 'growth.csv');
+    expect(parsed.rows).toHaveLength(381);
+    expect(parsed.rows.every((row) => row.status === 'ready')).toBe(true);
+    const history = contributionHistory(
+      [...parsed.rows].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate)),
+    );
+    expect(history).toMatchObject({ complete: true, units: '0', opening: '5001.92', issues: [] });
+    expect(history.observations.at(-1)).toMatchObject({ date: '2025-06-03', value: '0' });
+  },
+);

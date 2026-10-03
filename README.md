@@ -23,6 +23,19 @@ Keep existing `.env.local` values when resuming an installed app. Configure Work
 
 Jobs are atomic and bounded: at most 50 groups, 100 edits and 150 KB of proposal JSON. Larger tasks need separate reviewed jobs. Exports read all ledger pages; record revisions are rechecked on apply. The export is not a frozen database snapshot, so finish imports before downloading.
 
+## Import a former Simplicity fund
+
+Prepare each fund separately when your member number spans multiple funds. Use a stable instrument identity and the fund name shown in the statement:
+
+```sh
+python3 scripts/prepare-fund-import.py old-export.csv temp/growth-history.csv \
+  --instrument simplicity:growth --fund-name 'Simplicity Growth KiwiSaver'
+```
+
+Upload the prepared CSV in **Investments**, review the fund name and row counts, then commit. The script preserves every provider field and adds `InstrumentCode` and `FundName`. Its receipt records file hashes, dates and net units. Keep the original export and receipt with your evidence.
+
+Fund-specific imports have a separate ledger identity from unlabelled exports. Reuse the same instrument for later exports of that fund. Do not relabel an already imported file to import it again. Opening KiwiSaver transfers count as opening wealth; a switch-out closes that fund's units and counts as money leaving that fund. A switch is not a withdrawal from your whole KiwiSaver account. Separate fund histories do not reconcile the transfer between funds automatically.
+
 ## Optional ANZ connection
 
 Use an eligible Akahu personal app with **official ANZ bank-side consent for account information only**. Confirm eligibility using the [Akahu personal-app documentation](https://developers.akahu.nz/docs/personal-apps). If the official personal flow is unavailable, continue with file exports. CommBank stays file-based until an Australian provider is selected.

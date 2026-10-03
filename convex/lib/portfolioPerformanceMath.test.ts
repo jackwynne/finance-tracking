@@ -151,3 +151,61 @@ describe('contributed capital and growth', () => {
     );
   });
 });
+
+it('retains a transferred opening value and closes a sold fund without losing its growth history', () => {
+  const result = contributionHistory([
+    {
+      effectiveDate: '2017-11-15',
+      transactionType: 'Employee Contributions',
+      description: 'Employee Contributions · APP · KiwiSaver Transfer In',
+      units: '100',
+      unitPrice: '1',
+      amountMinor: 10000n,
+    },
+    {
+      effectiveDate: '2017-11-15',
+      transactionType: 'Kick Start',
+      description: 'Kick Start · APP · KiwiSaver Transfer In',
+      units: '50',
+      unitPrice: '1',
+      amountMinor: 5000n,
+    },
+    {
+      effectiveDate: '2018-01-01',
+      transactionType: 'Voluntary Contributions',
+      units: '20',
+      unitPrice: '2',
+      amountMinor: 4000n,
+    },
+    {
+      effectiveDate: '2018-02-01',
+      transactionType: 'Government Contributions',
+      units: '5',
+      unitPrice: '2',
+      amountMinor: 1000n,
+    },
+    {
+      effectiveDate: '2025-06-03',
+      transactionType: 'Switch',
+      description: 'Switch from Growth Fund',
+      units: '-175',
+      unitPrice: '3',
+      amountMinor: -52500n,
+    },
+  ]);
+  expect(result).toMatchObject({
+    opening: '150',
+    personal: '40',
+    other: '10',
+    withdrawals: '525',
+    units: '0',
+    complete: true,
+    issues: [],
+  });
+  expect(result.observations.at(-1)).toMatchObject({ value: '0', capital: '-325' });
+  expect(
+    contributionHistory([
+      { effectiveDate: '2025-06-03', transactionType: 'Switch', units: '-175', unitPrice: '3', amountMinor: -52500n },
+    ]).complete,
+  ).toBe(false);
+});

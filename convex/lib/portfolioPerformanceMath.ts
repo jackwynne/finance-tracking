@@ -15,7 +15,15 @@ export function contributionHistory(activities: ReadonlyArray<Activity>, zeroOpe
   let personal = 0n;
   let other = 0n;
   let withdrawals = 0n;
-  let complete = zeroOpening || activities.at(0)?.transactionType.toLowerCase().trim() === 'switch';
+  const first = activities.at(0);
+  const openingTransfer =
+    first !== undefined &&
+    (first.transactionType.toLowerCase().trim() === 'switch' ||
+      /kiwisaver transfer in/i.test(first.description ?? '')) &&
+    decimal(first.units) > 0n &&
+    first.amountMinor !== undefined &&
+    first.amountMinor > 0n;
+  let complete = zeroOpening || openingTransfer;
   const observations = new Map<
     string,
     {
@@ -44,19 +52,26 @@ export function contributionHistory(activities: ReadonlyArray<Activity>, zeroOpe
       .trim()
       .replace(/^(death|tpd) insurance premium.*$/, '$1 insurance premium');
     const delta = decimal(row.units);
-    if (type === 'switch' && units === 0n && observations.size === 0 && amount !== null) {
-      opening = amount < 0n ? -amount : amount;
+    if (
+      openingTransfer &&
+      row.effectiveDate === first.effectiveDate &&
+      (type === 'switch' || /kiwisaver transfer in/i.test(row.description ?? '')) &&
+      delta > 0n &&
+      amount !== null &&
+      amount > 0n
+    ) {
+      opening += amount;
     } else if (
-      /^(employee contributions|member contribution|personal contribution|regular savings plan|purchase|buy)$/.test(
+      /^(employee contributions|voluntary contributions|member contribution|personal contribution|regular savings plan|purchase|buy)$/.test(
         type,
       )
     ) {
       if (amount === null) complete = false;
       else personal += /^(regular savings plan|purchase|buy)$/.test(type) ? (amount < 0n ? -amount : amount) : amount;
-    } else if (/^(employer contributions|employer contribution|government contributions)$/.test(type)) {
+    } else if (/^(employer contributions|employer contribution|government contributions|kick start)$/.test(type)) {
       if (amount === null) complete = false;
       else other += amount;
-    } else if (/^(withdrawal|withdrawals|sell|sale)$/.test(type)) {
+    } else if (/^(withdrawal|withdrawals|sell|sale)$/.test(type) || (type === 'switch' && delta < 0n)) {
       if (amount === null) complete = false;
       else withdrawals += amount < 0n ? -amount : amount;
     } else if (

@@ -254,6 +254,14 @@ function parseFundExport(rows: Array<Array<string>>, fileName: string): ParsedIn
     .filter(({ cells }) => cells.some((cell) => cell.trim()));
   if (!data.length) throw new Error('The fund CSV does not contain any transactions.');
   const records = data.map(({ cells, rowNumber }) => ({ raw: recordFromRow(headers, cells), rowNumber }));
+  const instrumentCode = headers.includes('InstrumentCode') ? records[0].raw.InstrumentCode.trim() : undefined;
+  const fundName = headers.includes('FundName') ? records[0].raw.FundName.trim() : undefined;
+  if (headers.includes('InstrumentCode') || headers.includes('FundName')) {
+    if (!instrumentCode || !fundName)
+      throw new Error('Fund-specific exports require both InstrumentCode and FundName.');
+    if (records.some(({ raw }) => raw.InstrumentCode.trim() !== instrumentCode || raw.FundName.trim() !== fundName))
+      throw new Error('Import each fund separately with the same InstrumentCode and FundName on every row.');
+  }
   const accountIdentifier = records
     .filter(({ raw }) => raw.TransactionDescription.includes('|'))
     .map(({ raw }) => raw.TransactionDescription.split('|')[0]?.trim())
@@ -262,19 +270,26 @@ function parseFundExport(rows: Array<Array<string>>, fileName: string): ParsedIn
     .replace(/\.csv$/i, '')
     .trim()
     .toLowerCase();
-  const sourceKey = `fund-export:${accountIdentifier || stableFallback || 'default'}`;
+  if (instrumentCode && !accountIdentifier)
+    throw new Error('Fund-specific exports require a member identifier in TransactionDescription.');
+  const sourceKey = `fund-export:${accountIdentifier || stableFallback || 'default'}${instrumentCode ? `:instrument:${instrumentCode}` : ''}`;
   const parsedWithoutKeys = records.map(({ raw, rowNumber }): Omit<ParsedInvestmentRow, 'dedupeKey'> => {
     const sourceJson = JSON.stringify(raw);
     try {
       const displayName = raw.TransactionDisplayName.trim();
       const typeCode = raw.TransactionTypeDescription.trim();
       if (!displayName && !typeCode) throw new Error('Transaction type is required.');
-      const detail = raw.TransactionDescription.split('|').slice(1).join('|').trim();
+      const detail = raw.TransactionDescription.includes('|')
+        ? raw.TransactionDescription.split('|').slice(1).join('|').trim()
+        : instrumentCode
+          ? raw.TransactionDescription.trim()
+          : '';
       return {
         rowNumber,
         status: 'ready',
         format: 'fundCsv',
         effectiveDate: normalizedDate(raw.EffectiveDate),
+        instrumentCode,
         transactionType: displayName || typeCode,
         description: [displayName, typeCode, detail].filter(Boolean).join(' · '),
         units: normalizedDecimal(raw.Units),
@@ -295,7 +310,11 @@ function parseFundExport(rows: Array<Array<string>>, fileName: string): ParsedIn
     rows: parsedRows,
     summary: {
       format: 'fundCsv',
-      detectedAccountName: suffix ? `Managed fund •••• ${suffix}` : 'Managed fund',
+      detectedAccountName: fundName
+        ? `${fundName} •••• ${suffix}`
+        : suffix
+          ? `Managed fund •••• ${suffix}`
+          : 'Managed fund',
       provider: 'Managed fund',
       currency: 'NZD',
       sourceKeyHash: sha(sourceKey),
