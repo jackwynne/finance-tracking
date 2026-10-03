@@ -13,6 +13,7 @@ import { ExposureBreakdown } from './exposure-breakdown';
 import { exposureMoney as display } from './exposure-format';
 import { PageHeading, showError } from './finance-ui';
 import { PortfolioForms } from './portfolio-forms';
+import { PortfolioGrowth } from './portfolio-growth';
 import { PortfolioHistory } from './portfolio-history';
 import { stringField, boolField, weightsField, optionalStringField } from './portfolio-input';
 import { PortfolioPerformance } from './portfolio-performance';
@@ -344,6 +345,9 @@ export function PortfolioExposure() {
               breakdown.
             </p>
           )}
+          <div className="mb-6">
+            <PortfolioGrowth asOf={asOf} currency={currency} />
+          </div>
           <StockExposure exposure={summary} currency={displayCurrency} />
           <ExposureBreakdown exposure={summary} currency={displayCurrency} onSelectFunds={setSelectedPositions} />
           <div className="my-6">
@@ -352,7 +356,10 @@ export function PortfolioExposure() {
               Account history and contribution comparisons below use their own account selection, independently of
               exposure filters.
             </p>
-            <PortfolioPerformance asOf={asOf} currency={currency} />
+            <details>
+              <summary className="mb-3 cursor-pointer text-sm font-medium">History setup</summary>
+              <PortfolioPerformance asOf={asOf} currency={currency} />
+            </details>
           </div>
           <Card className="my-6">
             <CardHeader>

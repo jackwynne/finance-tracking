@@ -105,18 +105,18 @@ export function FinanceContributionChart({
     () =>
       defineChart({
         marks: [
-          areaY(points, { id: 'capital', x: 'time', y1: 0, y2: 'capital', fill: '#64748b', fillOpacity: 0.12 }),
+          areaY(points, { id: 'capital', x: 'time', y1: 0, y2: 'capital', fill: '#fb7185', fillOpacity: 0.55 }),
           differenceY(points, {
             id: 'value-and-capital',
             x: 'time',
             y1: 'capital',
             y2: 'value',
-            positiveFill: '#059669',
+            positiveFill: '#f59e0b',
             negativeFill: '#dc2626',
-            fillOpacity: 0.25,
+            fillOpacity: 0.5,
             stroke: 'var(--color-primary)',
-            comparisonStroke: '#64748b',
-            comparisonStrokeDasharray: '5 4',
+            comparisonStroke: '#f43f5e',
+
             points: true,
           }),
         ],
@@ -140,23 +140,23 @@ export function FinanceContributionChart({
     <div className="space-y-3">
       <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground" aria-label="Chart legend">
         <span>
-          <span aria-hidden="true" className="mr-2 inline-block h-2 w-4 rounded-sm bg-slate-500/30" />
+          <span aria-hidden="true" className="mr-2 inline-block h-2 w-4 rounded-sm bg-rose-400/60" />
           Opening value and net contributions
         </span>
         <span>
-          <span aria-hidden="true" className="mr-2 inline-block h-2 w-4 rounded-sm bg-emerald-600/40" />
-          Value above capital
+          <span aria-hidden="true" className="mr-2 inline-block h-2 w-4 rounded-sm bg-amber-500/60" />
+          Growth
         </span>
         <span>
           <span aria-hidden="true" className="mr-2 inline-block h-2 w-4 rounded-sm bg-red-600/40" />
-          Value below capital
+          Loss
         </span>
         <span>
           <span aria-hidden="true" className="mr-2 inline-block h-0.5 w-4 bg-primary align-middle" />
           Recorded value
         </span>
       </div>
-      <Chart definition={definition} height={320} ariaLabel={title} />
+      <Chart definition={definition} height={380} ariaLabel={title} />
       <p className="text-xs text-muted-foreground">
         Dots mark available valuation dates. Straight segments join these observations; they do not provide daily
         prices. Missing valuations break the value line and growth area.

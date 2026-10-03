@@ -121,6 +121,66 @@ test('performance requires ownership and values imported units at their observed
   await expect(stranger.query(api.portfolioPerformance.history, { accountId, asOf: '2025-02-01' })).rejects.toThrow(
     'Record not found',
   );
+  const assets = await owner.query(api.portfolioPerformance.allAssets, {
+    asOf: '2025-02-01',
+    reportingCurrency: 'NZD',
+  });
+  expect(assets).toHaveLength(1);
+  expect(assets[0]).toMatchObject({ id: accountId, name: 'Simplicity' });
+  expect(assets[0]?.observations.at(-1)).toMatchObject({ capital: '230', value: '330' });
+  expect(
+    await stranger.query(api.portfolioPerformance.allAssets, { asOf: '2025-02-01', reportingCurrency: 'NZD' }),
+  ).toEqual([]);
+  await expect(
+    t.query(api.portfolioPerformance.allAssets, { asOf: '2025-02-01', reportingCurrency: 'NZD' }),
+  ).rejects.toThrow('signed in');
+  await t.run(async (ctx) => {
+    const transaction = await ctx.db.query('investmentTransactions').first();
+    if (!transaction) throw new Error('Missing transaction');
+    await ctx.db.patch('investmentAccounts', accountId, { performanceZeroOpening: true });
+    await ctx.db.insert('investmentTransactions', {
+      ownerId: profile._id,
+      accountId,
+      effectiveDate: '2025-02-01',
+      transactionType: 'Buy',
+      description: 'Buy',
+      instrumentCode: 'SECOND',
+      units: '10',
+      unitPrice: '5',
+      amountMinor: 5000n,
+      currency: 'NZD',
+      createdByImportId: transaction.createdByImportId,
+      voided: false,
+    });
+    await ctx.db.insert('accounts', {
+      ownerId: profile._id,
+      name: 'Savings',
+      type: 'savings',
+      currency: 'NZD',
+      mask: '1234',
+      archived: false,
+    });
+    await ctx.db.insert('accounts', {
+      ownerId: profile._id,
+      name: 'Loan',
+      type: 'loan',
+      currency: 'NZD',
+      mask: '5678',
+      archived: false,
+    });
+  });
+  const split = await owner.query(api.portfolioPerformance.allAssets, { asOf: '2025-02-01', reportingCurrency: 'NZD' });
+  expect(split).toHaveLength(3);
+  expect(split.find((asset) => asset.name.startsWith('SECOND'))?.observations.at(-1)).toMatchObject({
+    capital: '50',
+    value: '50',
+  });
+  expect(split.find((asset) => asset.name === 'Simplicity')?.observations.at(-1)).toMatchObject({
+    capital: '230',
+    value: '330',
+  });
+  expect(split.find((asset) => asset.name === 'Savings')?.observations).toEqual([]);
+  expect(split.some((asset) => asset.name === 'Loan')).toBe(false);
   await expect(t.query(api.portfolioPerformance.options, {})).rejects.toThrow('signed in');
 });
 
